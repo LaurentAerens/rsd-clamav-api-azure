@@ -1,0 +1,21 @@
+version: "3.9"
+
+services:
+  clamav-api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: clamav-api
+    ports:
+      - "8080:8080"
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      CLAMD_HOST: 127.0.0.1
+      CLAMD_PORT: 3310
+      MAX_FILE_SIZE_MB: 200
+    volumes:
+      - clamav-db:/var/lib/clamav
+    restart: unless-stopped
+
+volumes:
+  clamav-db:
