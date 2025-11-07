@@ -109,7 +109,7 @@ public class BackgroundScanService(
 
         try
         {
-            // First, make a HEAD request to check size
+            // make a HEAD request to check size
             using var headRequest = new HttpRequestMessage(HttpMethod.Head, request.SourceUrl);
             using var headResponse = await httpClient.SendAsync(headRequest);
 
@@ -141,7 +141,7 @@ public class BackgroundScanService(
                 logger.LogWarning("No Content-Length header for {Url}, will monitor size during download", request.SourceUrl);
             }
 
-            // Download the file with size monitoring
+            // Download the file with size monitorng
             using var getRequest = new HttpRequestMessage(HttpMethod.Get, request.SourceUrl);
             using var response = await httpClient.SendAsync(getRequest, HttpCompletionOption.ResponseHeadersRead);
             response.EnsureSuccessStatusCode();
