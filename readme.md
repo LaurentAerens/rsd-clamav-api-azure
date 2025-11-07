@@ -118,7 +118,7 @@ curl http://localhost:8080/scan/async/abc-123
 
 💡 *Note: Your local antivirus may delete the EICAR test file immediately – that's normal.*
 
-💡 *For large files (>10MB), use the async endpoint for better performance. See [ASYNC_API_GUIDE.md](ASYNC_API_GUIDE.md) for details.*
+💡 *For large files (>10MB), use the async endpoint for better performance.*
 
 ---
 
