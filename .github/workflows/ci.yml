@@ -6,10 +6,15 @@ on:
   push:
     branches: [ main ]
 
+permissions:
+  contents: read
+
 jobs:
   build-and-test-main:
     name: Build GovUK.Dfe.ClamAV
     uses: ./.github/workflows/build-test-template.yml
+    permissions:
+      contents: read
     with:
       project_name: GovUK.Dfe.ClamAV
       project_path: src/GovUK.Dfe.ClamAV
@@ -18,6 +23,8 @@ jobs:
   build-and-test-api-client:
     name: Build GovUK.Dfe.ClamAV.Api.Client
     uses: ./.github/workflows/build-test-template.yml
+    permissions:
+      contents: read
     with:
       project_name: GovUK.Dfe.ClamAV.Api.Client
       project_path: src/GovUK.Dfe.ClamAV.Api.Client
