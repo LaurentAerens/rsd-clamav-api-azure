@@ -1,0 +1,24 @@
+name: CI - Build and Test
+
+on:
+  pull_request:
+    # Run on all pull requests regardless of target branch
+  push:
+    branches: [ main ]
+
+jobs:
+  build-and-test-main:
+    name: Build GovUK.Dfe.ClamAV
+    uses: ./.github/workflows/build-test-template.yml
+    with:
+      project_name: GovUK.Dfe.ClamAV
+      project_path: src/GovUK.Dfe.ClamAV
+      run_tests: false
+
+  build-and-test-api-client:
+    name: Build GovUK.Dfe.ClamAV.Api.Client
+    uses: ./.github/workflows/build-test-template.yml
+    with:
+      project_name: GovUK.Dfe.ClamAV.Api.Client
+      project_path: src/GovUK.Dfe.ClamAV.Api.Client
+      run_tests: false
