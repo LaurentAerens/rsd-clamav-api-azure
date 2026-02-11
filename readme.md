@@ -12,6 +12,7 @@ It’s designed for local development, testing, and service integration — all 
 - 🧩 **All-in-one container** – ClamAV + REST API + Swagger.
 - 🔐 **Azure AD Authentication** – Secured with OAuth 2.0 client credentials flow.
 - 🔄 **Automatic virus database updates** at start-up.
+- 🛡️ **Extended community signatures** – The sanesecurity/rogue.hdb is loaded in to provide some additional signatures beyond the default ClamAV database without causing too many false positives.
 - 🧠 **Swagger UI** for easy manual testing (`/swagger`) with OAuth2 support.
 - 💬 **Endpoints** for scanning, health checks, and ClamAV version info.
 - ⚡ **Async scanning support** – Upload large files and poll for results (ideal for files >10MB).
