@@ -104,7 +104,9 @@ public class JsonScanHandler(
             }
 
             result.ScanDurationMs = (DateTime.UtcNow - startTime).TotalMilliseconds;
-            return Results.Ok(result);
+            return result.Status == "infected" 
+                ? Results.Json(result, statusCode: 406) 
+                : Results.Ok(result);
         }
         catch (Exception ex)
         {

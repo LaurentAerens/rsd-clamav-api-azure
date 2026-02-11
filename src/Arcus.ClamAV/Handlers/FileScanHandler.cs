@@ -36,7 +36,7 @@ public class FileScanHandler(
                 Size = file.Length,
                 ScanDurationMs = scanDuration.TotalMilliseconds
             }),
-            ClamScanResults.VirusDetected => Results.Ok(new ScanResponse
+            ClamScanResults.VirusDetected => Results.Json(new ScanResponse
             {
                 Status = "infected",
                 Engine = "clamav",
@@ -44,7 +44,7 @@ public class FileScanHandler(
                 FileName = file.FileName,
                 Size = file.Length,
                 ScanDurationMs = scanDuration.TotalMilliseconds
-            }),
+            }, statusCode: (int)HttpStatusCode.NotAcceptable),
             _ => Results.Problem($"Scan error: {result.RawResult}", statusCode: (int)HttpStatusCode.InternalServerError)
         };
     }
