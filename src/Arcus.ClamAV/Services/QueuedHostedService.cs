@@ -6,15 +6,18 @@ namespace Arcus.ClamAV.Services;
 public class QueuedHostedService : BackgroundService
 {
     private readonly IBackgroundTaskQueue _taskQueue;
+    private readonly ITelemetryService _telemetryService;
     private readonly ILogger<QueuedHostedService> _logger;
     private readonly int _maxConcurrentWorkers;
 
     public QueuedHostedService(
         IBackgroundTaskQueue taskQueue,
+        ITelemetryService telemetryService,
         ILogger<QueuedHostedService> logger,
         IConfiguration configuration)
     {
         _taskQueue = taskQueue;
+        _telemetryService = telemetryService;
         _logger = logger;
         _maxConcurrentWorkers = int.TryParse(
             configuration["BackgroundProcessing:MaxConcurrentWorkers"],
@@ -44,6 +47,7 @@ public class QueuedHostedService : BackgroundService
     private async Task WorkerAsync(int workerId, CancellationToken stoppingToken)
     {
         _logger.LogInformation("Worker {WorkerId} started", workerId);
+        int activeWorkers = 1;
 
         while (!stoppingToken.IsCancellationRequested)
         {
@@ -55,6 +59,9 @@ public class QueuedHostedService : BackgroundService
                     continue;
 
                 _logger.LogDebug("Worker {WorkerId} processing task", workerId);
+                
+                // Track worker utilization before processing
+                _telemetryService.TrackWorkerUtilization(activeWorkers, _maxConcurrentWorkers);
 
                 var success = await workItem(stoppingToken);
                 

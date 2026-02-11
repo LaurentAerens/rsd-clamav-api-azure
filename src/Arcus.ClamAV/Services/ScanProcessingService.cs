@@ -5,12 +5,14 @@ namespace Arcus.ClamAV.Services;
 
 public class ScanProcessingService(
     IScanJobService jobService,
+    ITelemetryService telemetryService,
     IConfiguration configuration,
     ILogger<ScanProcessingService> logger)
     : IScanProcessingService
 {
     public async Task<bool> ProcessFileScanAsync(string jobId, string tempFilePath, CancellationToken cancellationToken)
     {
+        var stopwatch = System.Diagnostics.Stopwatch.StartNew();
         try
         {
             jobService.UpdateJobStatus(jobId, "scanning");
@@ -22,12 +24,28 @@ public class ScanProcessingService(
             {
                 jobService.UpdateJobStatus(jobId, scanResult.IsClean ? "clean" : "infected", 
                     malware: scanResult.MalwareName);
+                
+                // Track telemetry for completed scan
+                stopwatch.Stop();
+                var fileInfo = new FileInfo(tempFilePath);
+                telemetryService.TrackScanCompleted(
+                    stopwatch.ElapsedMilliseconds,
+                    scanResult.IsClean,
+                    fileInfo.Exists ? fileInfo.Length : 0,
+                    "file");
+                
+                if (!scanResult.IsClean && scanResult.MalwareName != null)
+                {
+                    telemetryService.TrackMalwareDetected(scanResult.MalwareName, Path.GetFileName(tempFilePath), "file");
+                }
+                
                 logger.LogInformation("Job {JobId} scan complete: {Status}", jobId, 
                     scanResult.IsClean ? "Clean" : $"Infected with {scanResult.MalwareName}");
             }
             else
             {
                 jobService.UpdateJobStatus(jobId, "error", error: scanResult.Error);
+                telemetryService.TrackScanFailed(scanResult.Error ?? "Unknown error", "file");
                 logger.LogError("Job {JobId} scan error: {Error}", jobId, scanResult.Error);
             }
 
@@ -36,7 +54,9 @@ public class ScanProcessingService(
         }
         catch (Exception ex)
         {
+            stopwatch.Stop();
             jobService.UpdateJobStatus(jobId, "error", error: ex.Message);
+            telemetryService.TrackScanFailed(ex.Message, "file", ex);
             logger.LogError(ex, "Error processing scan job {JobId}", jobId);
             jobService.CompleteJob(jobId);
             return false;
@@ -50,6 +70,7 @@ public class ScanProcessingService(
 
     public async Task<bool> ProcessUrlScanAsync(string jobId, string url, string tempFilePath, long maxFileSize, CancellationToken cancellationToken)
     {
+        var stopwatch = System.Diagnostics.Stopwatch.StartNew();
         try
         {
             // Download phase
@@ -69,7 +90,9 @@ public class ScanProcessingService(
         }
         catch (Exception ex)
         {
+            stopwatch.Stop();
             jobService.UpdateJobStatus(jobId, "error", error: ex.Message);
+            telemetryService.TrackScanFailed(ex.Message, "url", ex);
             logger.LogError(ex, "Error processing URL scan job {JobId}", jobId);
             jobService.CompleteJob(jobId);
             CleanupTempFile(tempFilePath, jobId);

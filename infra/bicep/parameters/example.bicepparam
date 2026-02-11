@@ -130,6 +130,53 @@ param fileShareQuotaGiB = 5
 param logRetentionDays = 30
 
 // ========================================
+// APPLICATION INSIGHTS (MONITORING)
+// ========================================
+
+// Enable Application Insights for telemetry, distributed tracing, and custom metrics
+// Set to false to disable all telemetry (app will run normally with console logging only)
+param enableApplicationInsights = true
+
+// Application Insights name (leave empty for auto-generated)
+// param applicationInsightsName = 'appi-clamav-api-dev'  // Uncomment to use custom name
+
+// Application Insights data retention in days
+// Longer retention allows historical analysis but increases costs
+param appInsightsRetentionDays = 90
+
+// Daily data cap in GB (0 = no cap)
+// Set a cap to control costs in high-traffic scenarios
+// param appInsightsDailyCapGB = 5  // Uncomment to set daily cap
+
+// Disable IP masking for detailed telemetry (enable for troubleshooting)
+// When false (default), IP addresses are masked for privacy
+param appInsightsDisableIpMasking = false
+
+// ========================================
+// MALWARE DETECTION ALERTS (OPTIONAL)
+// ========================================
+// Configure alerts to be notified when malware is detected
+// Requires an Azure Monitor Action Group for notifications
+
+// Enable alerts for malware detection events
+param enableMalwareAlerts = true
+
+// Resource ID of the Action Group to send alerts to
+// Format: /subscriptions/{subscriptionId}/resourceGroups/{resourceGroup}/providers/Microsoft.Insights/actionGroups/{actionGroupName}
+// Leave empty to disable malware alerts even if enableMalwareAlerts is true
+// Example:
+// param malwareAlertActionGroupId = '/subscriptions/12345678-1234-1234-1234-123456789abc/resourceGroups/rg-monitoring/providers/Microsoft.Insights/actionGroups/Security-Team'
+param malwareAlertActionGroupId = ''
+
+// Alert threshold: number of malware detections required to trigger alert
+// Set to 1 to alert on any detection, higher values require multiple detections in the time window
+// param malwareAlertThreshold = 1  // Uncomment and modify as needed
+
+// Time window for evaluating malware detections (in minutes, 1-1440)
+// Alert counts detections within this window before triggering
+// param malwareAlertEvaluationMinutes = 5  // Uncomment to customize (default: 5 minutes)
+
+// ========================================
 // ADVANCED OPTIONS
 // ========================================
 

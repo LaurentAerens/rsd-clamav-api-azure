@@ -73,6 +73,123 @@ param existingManagedEnvironmentResourceGroup = 'rg-shared-infrastructure'
 
 This saves costs and centralizes management.
 
+## Application Insights and Monitoring
+
+Application Insights is enabled by default and provides:
+- **Distributed tracing** - Track requests across services
+- **Custom metrics** - Scan performance, malware detections, queue depth
+- **Live metrics** - Real-time monitoring dashboard
+- **Application Map** - Visualize dependencies and performance
+- **Kusto queries** - Advanced log analysis
+
+### Enable Application Insights (Default)
+```bicep
+param enableApplicationInsights = true
+param appInsightsRetentionDays = 90
+```
+
+### Disable Application Insights
+To disable telemetry completely (app runs normally with console logging):
+```bicep
+param enableApplicationInsights = false
+```
+
+When disabled:
+- ✅ Application still runs normally
+- ✅ Logs go to console (captured by Container Apps logs)
+- ❌ No custom metrics or distributed tracing
+- ❌ No Application Insights dashboards
+
+### Cost Control
+Set a daily cap to prevent unexpected charges:
+```bicep
+param appInsightsDailyCapGB = 5  // Stop ingestion after 5GB per day
+```
+
+### Querying Telemetry
+Once deployed, query logs in Azure Portal:
+```kusto
+// Find malware detections
+traces
+| where message contains "Malware detected"
+| project timestamp, message, customDimensions
+| order by timestamp desc
+
+// Scan performance metrics
+customMetrics
+| where name == "ScanDuration"
+| summarize avg(value), percentile(value, 95) by bin(timestamp, 1h)
+```
+
+## Malware Detection Alerts
+
+Get notified immediately when malware is detected using Azure Monitor Action Groups. This is optional but highly recommended for production.
+
+### Prerequisites
+
+Create an Action Group first in Azure:
+
+```bash
+# Create Action Group for security team
+az monitor action-group create \
+  --resource-group <your-resource-group> \
+  --name SecurityTeamAlerts \
+  --short-name "SecAlert"
+
+# Add email notification
+az monitor action-group update \
+  --resource-group <your-resource-group> \
+  --name SecurityTeamAlerts \
+  --add-action-group-receiver SecTeamEmail email \
+  --receiver-name SecTeamEmail \
+  --receiver-email-address security-team@yourcompany.com
+
+# Get the Action Group ID
+az monitor action-group show \
+  --resource-group <your-resource-group> \
+  --name SecurityTeamAlerts \
+  --query id -o tsv
+```
+
+### Enable Malware Alerts
+
+Add to your parameter file:
+
+```bicep
+param enableMalwareAlerts = true
+param malwareAlertActionGroupId = '/subscriptions/{subscriptionId}/resourceGroups/{resourceGroup}/providers/Microsoft.Insights/actionGroups/SecurityTeamAlerts'
+```
+
+### Configure Alert Behavior
+
+Control when alerts trigger:
+
+```bicep
+// Alert on any detection (default)
+param malwareAlertThreshold = 1
+
+// Or alert only after multiple detections in 5 minutes
+param malwareAlertThreshold = 3
+param malwareAlertEvaluationMinutes = 5
+
+// Increase evaluation window to 15 minutes
+param malwareAlertEvaluationMinutes = 15
+```
+
+### Disable Alerts
+
+To disable malware alerts:
+
+```bicep
+param enableMalwareAlerts = false
+```
+
+Or leave the action group ID empty:
+
+```bicep
+param malwareAlertActionGroupId = ''  // Alerts won't be created
+```
+
 ## Environment-Specific Configurations
 
 ### Development

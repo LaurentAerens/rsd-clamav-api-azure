@@ -14,6 +14,22 @@ builder.Configuration
     .AddEnvironmentVariables()
     .AddCommandLine(args);
 
+// Configure Application Insights telemetry (only if connection string provided)
+var appInsightsConnectionString = builder.Configuration["APPLICATIONINSIGHTS_CONNECTION_STRING"] 
+                                   ?? builder.Configuration["ApplicationInsights:ConnectionString"];
+if (!string.IsNullOrWhiteSpace(appInsightsConnectionString))
+{
+    builder.Services.AddApplicationInsightsTelemetry(options =>
+    {
+        options.ConnectionString = appInsightsConnectionString;
+        options.EnableAdaptiveSampling = true;
+        options.EnablePerformanceCounterCollectionModule = true;
+        options.EnableDependencyTrackingTelemetryModule = true;
+    });
+    
+    builder.Logging.AddApplicationInsights();
+}
+
 var maxFileSizeMb = int.TryParse(Environment.GetEnvironmentVariable("MAX_FILE_SIZE_MB"), out var m) ? m : 200;
 
 // Configure Kestrel for better upload performance
@@ -53,6 +69,9 @@ builder.Services.AddSingleton<IClamAvInfoService, ClamAvInfoService>();
 builder.Services.AddSingleton<IScanJobService, ScanJobService>();
 builder.Services.AddSingleton<IJsonBase64ExtractorService, JsonBase64ExtractorService>();
 
+// Register telemetry service (safe to use even if Application Insights is not configured)
+builder.Services.AddSingleton<ITelemetryService, TelemetryService>();
+
 // Register processing service
 builder.Services.AddScoped<IScanProcessingService, ScanProcessingService>();
 
@@ -65,7 +84,8 @@ builder.Services.AddScoped<JsonScanHandler>();
 builder.Services.AddSingleton<IBackgroundTaskQueue>(sp =>
 {
     var logger = sp.GetRequiredService<ILogger<BackgroundTaskQueue>>();
-    return new BackgroundTaskQueue(capacity: 100, logger);
+    var telemetryService = sp.GetRequiredService<ITelemetryService>();
+    return new BackgroundTaskQueue(capacity: 100, logger, telemetryService);
 });
 builder.Services.AddHostedService<QueuedHostedService>();
 

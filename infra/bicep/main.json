@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.38.33.27573",
-      "templateHash": "10458668320292252992"
+      "templateHash": "15459231251125097542"
     }
   },
   "parameters": {
@@ -223,6 +223,76 @@
         "description": "Log retention in days"
       }
     },
+    "enableApplicationInsights": {
+      "type": "bool",
+      "defaultValue": true,
+      "metadata": {
+        "description": "Enable Application Insights for telemetry and monitoring"
+      }
+    },
+    "applicationInsightsName": {
+      "type": "string",
+      "defaultValue": "",
+      "metadata": {
+        "description": "Name of the Application Insights resource (leave empty to auto-generate)"
+      }
+    },
+    "appInsightsRetentionDays": {
+      "type": "int",
+      "defaultValue": 90,
+      "minValue": 30,
+      "maxValue": 730,
+      "metadata": {
+        "description": "Application Insights data retention in days"
+      }
+    },
+    "appInsightsDailyCapGB": {
+      "type": "int",
+      "defaultValue": 0,
+      "minValue": 0,
+      "metadata": {
+        "description": "Application Insights daily data cap in GB (0 = no cap)"
+      }
+    },
+    "appInsightsDisableIpMasking": {
+      "type": "bool",
+      "defaultValue": false,
+      "metadata": {
+        "description": "Disable IP masking in Application Insights for detailed telemetry"
+      }
+    },
+    "enableMalwareAlerts": {
+      "type": "bool",
+      "defaultValue": true,
+      "metadata": {
+        "description": "Enable alerts when malware is detected"
+      }
+    },
+    "malwareAlertActionGroupId": {
+      "type": "string",
+      "defaultValue": "",
+      "metadata": {
+        "example": "/subscriptions/{subscriptionId}/resourceGroups/{resourceGroup}/providers/Microsoft.Insights/actionGroups/{actionGroupName}",
+        "description": "Resource ID of the Action Group to notify on malware detection"
+      }
+    },
+    "malwareAlertThreshold": {
+      "type": "int",
+      "defaultValue": 1,
+      "minValue": 1,
+      "metadata": {
+        "description": "Alert threshold: number of malware detections to trigger alert"
+      }
+    },
+    "malwareAlertEvaluationMinutes": {
+      "type": "int",
+      "defaultValue": 5,
+      "minValue": 1,
+      "maxValue": 1440,
+      "metadata": {
+        "description": "Time window for malware alert evaluation (in minutes)"
+      }
+    },
     "tags": {
       "type": "object",
       "defaultValue": {
@@ -240,6 +310,7 @@
     "acrName": "[if(not(empty(parameters('containerRegistryName'))), parameters('containerRegistryName'), format('acr{0}{1}', parameters('applicationName'), variables('resourceSuffix')))]",
     "storageAcctName": "[if(not(empty(parameters('storageAccountName'))), parameters('storageAccountName'), format('st{0}{1}', parameters('applicationName'), variables('resourceSuffix')))]",
     "logAnalyticsName": "[format('log-{0}-{1}-{2}', parameters('applicationName'), parameters('environmentName'), variables('resourceSuffix'))]",
+    "appInsightsName": "[if(not(empty(parameters('applicationInsightsName'))), parameters('applicationInsightsName'), format('appi-{0}-{1}', parameters('applicationName'), parameters('environmentName')))]",
     "containerEnvironmentName": "[format('cae-{0}-{1}', parameters('applicationName'), parameters('environmentName'))]",
     "acrPullRoleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '7f951dda-4ed3-4680-a7ca-43fe172d538d')]",
     "roleAssignmentName": "[guid('deploy-acr', 'deploy-container-app', variables('acrPullRoleDefinitionId'))]"
@@ -257,6 +328,46 @@
       "dependsOn": [
         "[resourceId('Microsoft.Resources/deployments', 'deploy-container-app')]",
         "[resourceId('Microsoft.Resources/deployments', 'deploy-acr')]"
+      ]
+    },
+    {
+      "condition": "[and(and(parameters('enableMalwareAlerts'), parameters('enableApplicationInsights')), not(empty(parameters('malwareAlertActionGroupId'))))]",
+      "type": "Microsoft.Insights/metricAlerts",
+      "apiVersion": "2018-03-01",
+      "name": "[format('{0}-malware-detection-alert', parameters('applicationName'))]",
+      "location": "global",
+      "tags": "[parameters('tags')]",
+      "properties": {
+        "description": "Alert triggered when malware is detected by the ClamAV scanning API",
+        "severity": 2,
+        "enabled": true,
+        "scopes": [
+          "[if(parameters('enableApplicationInsights'), reference(resourceId('Microsoft.Resources/deployments', 'deploy-app-insights'), '2025-04-01').outputs.applicationInsightsId.value, '')]"
+        ],
+        "evaluationFrequency": "PT1M",
+        "windowSize": "[format('PT{0}M', parameters('malwareAlertEvaluationMinutes'))]",
+        "criteria": {
+          "odata.type": "Microsoft.Azure.Monitor.MultipleResourceMultipleMetricCriteria",
+          "allOf": [
+            {
+              "name": "MalwareDetections",
+              "metricName": "MalwareDetections",
+              "operator": "GreaterThanOrEqual",
+              "threshold": "[parameters('malwareAlertThreshold')]",
+              "timeAggregation": "Total",
+              "dimensions": [],
+              "criterionType": "StaticThresholdCriterion"
+            }
+          ]
+        },
+        "actions": [
+          {
+            "actionGroupId": "[parameters('malwareAlertActionGroupId')]"
+          }
+        ]
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Resources/deployments', 'deploy-app-insights')]"
       ]
     },
     {
@@ -3341,6 +3452,211 @@
           }
         }
       }
+    },
+    {
+      "condition": "[parameters('enableApplicationInsights')]",
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2025-04-01",
+      "name": "deploy-app-insights",
+      "properties": {
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
+        "mode": "Incremental",
+        "parameters": {
+          "applicationInsightsName": {
+            "value": "[variables('appInsightsName')]"
+          },
+          "location": {
+            "value": "[parameters('location')]"
+          },
+          "logAnalyticsWorkspaceId": "[if(not(parameters('useExistingManagedEnvironment')), createObject('value', reference(resourceId('Microsoft.Resources/deployments', 'deploy-log-analytics'), '2025-04-01').outputs.workspaceId.value), createObject('value', ''))]",
+          "applicationType": {
+            "value": "web"
+          },
+          "retentionInDays": {
+            "value": "[parameters('appInsightsRetentionDays')]"
+          },
+          "dailyDataCapInGB": {
+            "value": "[parameters('appInsightsDailyCapGB')]"
+          },
+          "disableIpMasking": {
+            "value": "[parameters('appInsightsDisableIpMasking')]"
+          },
+          "samplingPercentage": {
+            "value": 100
+          },
+          "tags": {
+            "value": "[parameters('tags')]"
+          }
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "metadata": {
+            "_generator": {
+              "name": "bicep",
+              "version": "0.38.33.27573",
+              "templateHash": "1445426151611140640"
+            }
+          },
+          "parameters": {
+            "applicationInsightsName": {
+              "type": "string",
+              "metadata": {
+                "description": "Name of the Application Insights resource"
+              }
+            },
+            "location": {
+              "type": "string",
+              "metadata": {
+                "description": "Azure region for the Application Insights resource"
+              }
+            },
+            "logAnalyticsWorkspaceId": {
+              "type": "string",
+              "metadata": {
+                "description": "Resource ID of the Log Analytics workspace to link to"
+              }
+            },
+            "applicationType": {
+              "type": "string",
+              "defaultValue": "web",
+              "allowedValues": [
+                "web",
+                "other"
+              ],
+              "metadata": {
+                "description": "Application type for Application Insights"
+              }
+            },
+            "tags": {
+              "type": "object",
+              "defaultValue": {},
+              "metadata": {
+                "description": "Tags to apply to the Application Insights resource"
+              }
+            },
+            "retentionInDays": {
+              "type": "int",
+              "defaultValue": 90,
+              "minValue": 30,
+              "maxValue": 730,
+              "metadata": {
+                "description": "Data retention in days (30-730)"
+              }
+            },
+            "dailyDataCapInGB": {
+              "type": "int",
+              "defaultValue": 0,
+              "minValue": 0,
+              "metadata": {
+                "description": "Daily data cap in GB (0 = no cap)"
+              }
+            },
+            "disableIpMasking": {
+              "type": "bool",
+              "defaultValue": false,
+              "metadata": {
+                "description": "Disable IP masking for detailed telemetry"
+              }
+            },
+            "samplingPercentage": {
+              "type": "int",
+              "defaultValue": 100,
+              "minValue": 0,
+              "maxValue": 100,
+              "metadata": {
+                "description": "Sampling percentage (0-100)"
+              }
+            }
+          },
+          "resources": [
+            {
+              "type": "Microsoft.Insights/components",
+              "apiVersion": "2020-02-02",
+              "name": "[parameters('applicationInsightsName')]",
+              "location": "[parameters('location')]",
+              "kind": "web",
+              "tags": "[parameters('tags')]",
+              "properties": {
+                "Application_Type": "[parameters('applicationType')]",
+                "WorkspaceResourceId": "[parameters('logAnalyticsWorkspaceId')]",
+                "RetentionInDays": "[parameters('retentionInDays')]",
+                "DisableIpMasking": "[parameters('disableIpMasking')]",
+                "SamplingPercentage": "[parameters('samplingPercentage')]",
+                "IngestionMode": "LogAnalytics",
+                "publicNetworkAccessForIngestion": "Enabled",
+                "publicNetworkAccessForQuery": "Enabled"
+              }
+            },
+            {
+              "condition": "[greater(parameters('dailyDataCapInGB'), 0)]",
+              "type": "Microsoft.Insights/components/currentbillingfeatures",
+              "apiVersion": "2015-05-01",
+              "name": "[format('{0}/{1}', parameters('applicationInsightsName'), 'Current')]",
+              "properties": {
+                "CurrentBillingFeatures": "Basic",
+                "DataVolumeCap": {
+                  "Cap": "[parameters('dailyDataCapInGB')]",
+                  "WarningThreshold": 90,
+                  "ResetTime": 0
+                }
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.Insights/components', parameters('applicationInsightsName'))]"
+              ]
+            }
+          ],
+          "outputs": {
+            "applicationInsightsId": {
+              "type": "string",
+              "metadata": {
+                "description": "Application Insights resource ID"
+              },
+              "value": "[resourceId('Microsoft.Insights/components', parameters('applicationInsightsName'))]"
+            },
+            "applicationInsightsName": {
+              "type": "string",
+              "metadata": {
+                "description": "Application Insights name"
+              },
+              "value": "[parameters('applicationInsightsName')]"
+            },
+            "connectionString": {
+              "type": "string",
+              "metadata": {
+                "description": "Application Insights connection string"
+              },
+              "value": "[reference(resourceId('Microsoft.Insights/components', parameters('applicationInsightsName')), '2020-02-02').ConnectionString]"
+            },
+            "instrumentationKey": {
+              "type": "string",
+              "metadata": {
+                "description": "Application Insights instrumentation key"
+              },
+              "value": "[reference(resourceId('Microsoft.Insights/components', parameters('applicationInsightsName')), '2020-02-02').InstrumentationKey]"
+            },
+            "appId": {
+              "type": "string",
+              "metadata": {
+                "description": "Application Insights App ID"
+              },
+              "value": "[reference(resourceId('Microsoft.Insights/components', parameters('applicationInsightsName')), '2020-02-02').AppId]"
+            },
+            "workspaceId": {
+              "type": "string",
+              "metadata": {
+                "description": "Log Analytics workspace ID linked to Application Insights"
+              },
+              "value": "[parameters('logAnalyticsWorkspaceId')]"
+            }
+          }
+        }
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Resources/deployments', 'deploy-log-analytics')]"
+      ]
     },
     {
       "type": "Microsoft.Resources/deployments",
@@ -12531,6 +12847,7 @@
           "aadAudience": {
             "value": "[parameters('aadAudience')]"
           },
+          "applicationInsightsConnectionString": "[if(parameters('enableApplicationInsights'), createObject('value', reference(resourceId('Microsoft.Resources/deployments', 'deploy-app-insights'), '2025-04-01').outputs.connectionString.value), createObject('value', ''))]",
           "tags": {
             "value": "[parameters('tags')]"
           }
@@ -12542,7 +12859,7 @@
             "_generator": {
               "name": "bicep",
               "version": "0.38.33.27573",
-              "templateHash": "6202102342786342909"
+              "templateHash": "17363978293845940464"
             }
           },
           "parameters": {
@@ -12693,6 +13010,13 @@
                 "description": "ASP.NET Core environment"
               }
             },
+            "applicationInsightsConnectionString": {
+              "type": "string",
+              "defaultValue": "",
+              "metadata": {
+                "description": "Application Insights connection string (empty to disable telemetry)"
+              }
+            },
             "tags": {
               "type": "object",
               "defaultValue": {},
@@ -12800,6 +13124,22 @@
                           {
                             "name": "CLAMD_PORT",
                             "value": "3310"
+                          },
+                          {
+                            "name": "APPLICATIONINSIGHTS_CONNECTION_STRING",
+                            "value": "[parameters('applicationInsightsConnectionString')]"
+                          },
+                          {
+                            "name": "Logging__LogLevel__Default",
+                            "value": "[if(equals(parameters('aspNetCoreEnvironment'), 'Production'), 'Information', 'Debug')]"
+                          },
+                          {
+                            "name": "Logging__LogLevel__Microsoft",
+                            "value": "[if(equals(parameters('aspNetCoreEnvironment'), 'Production'), 'Warning', 'Information')]"
+                          },
+                          {
+                            "name": "Logging__LogLevel__Microsoft.AspNetCore",
+                            "value": "[if(equals(parameters('aspNetCoreEnvironment'), 'Production'), 'Warning', 'Information')]"
                           }
                         ],
                         "volumeMounts": [
@@ -13924,6 +14264,7 @@
         }
       },
       "dependsOn": [
+        "[resourceId('Microsoft.Resources/deployments', 'deploy-app-insights')]",
         "[resourceId('Microsoft.Resources/deployments', 'deploy-container-environment')]",
         "[resourceId('Microsoft.Resources/deployments', 'deploy-acr')]"
       ]
@@ -13999,6 +14340,48 @@
         "description": "Container App system-assigned managed identity principal ID"
       },
       "value": "[reference(resourceId('Microsoft.Resources/deployments', 'deploy-container-app'), '2025-04-01').outputs.principalId.value]"
+    },
+    "applicationInsightsConnectionString": {
+      "type": "string",
+      "metadata": {
+        "description": "Application Insights connection string (if enabled)"
+      },
+      "value": "[if(parameters('enableApplicationInsights'), reference(resourceId('Microsoft.Resources/deployments', 'deploy-app-insights'), '2025-04-01').outputs.connectionString.value, 'Not enabled')]"
+    },
+    "applicationInsightsInstrumentationKey": {
+      "type": "string",
+      "metadata": {
+        "description": "Application Insights instrumentation key (if enabled)"
+      },
+      "value": "[if(parameters('enableApplicationInsights'), reference(resourceId('Microsoft.Resources/deployments', 'deploy-app-insights'), '2025-04-01').outputs.instrumentationKey.value, 'Not enabled')]"
+    },
+    "applicationInsightsName": {
+      "type": "string",
+      "metadata": {
+        "description": "Application Insights name (if enabled)"
+      },
+      "value": "[if(parameters('enableApplicationInsights'), reference(resourceId('Microsoft.Resources/deployments', 'deploy-app-insights'), '2025-04-01').outputs.applicationInsightsName.value, 'Not enabled')]"
+    },
+    "applicationInsightsAppId": {
+      "type": "string",
+      "metadata": {
+        "description": "Application Insights App ID (if enabled)"
+      },
+      "value": "[if(parameters('enableApplicationInsights'), reference(resourceId('Microsoft.Resources/deployments', 'deploy-app-insights'), '2025-04-01').outputs.appId.value, 'Not enabled')]"
+    },
+    "malwareAlertName": {
+      "type": "string",
+      "metadata": {
+        "description": "Malware detection alert name (if enabled)"
+      },
+      "value": "[if(and(and(parameters('enableMalwareAlerts'), parameters('enableApplicationInsights')), not(empty(parameters('malwareAlertActionGroupId')))), format('{0}-malware-detection-alert', parameters('applicationName')), 'Not enabled')]"
+    },
+    "malwareAlertId": {
+      "type": "string",
+      "metadata": {
+        "description": "Malware detection alert ID (if enabled)"
+      },
+      "value": "[if(and(and(parameters('enableMalwareAlerts'), parameters('enableApplicationInsights')), not(empty(parameters('malwareAlertActionGroupId')))), resourceId('Microsoft.Insights/metricAlerts', format('{0}-malware-detection-alert', parameters('applicationName'))), 'Not enabled')]"
     }
   }
 }

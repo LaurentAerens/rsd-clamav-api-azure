@@ -143,6 +143,50 @@ param aadAudience string = ''
 param logRetentionDays int = 30
 
 // ========================================
+// Application Insights Parameters
+// ========================================
+
+@description('Enable Application Insights for telemetry and monitoring')
+param enableApplicationInsights bool = true
+
+@description('Name of the Application Insights resource (leave empty to auto-generate)')
+param applicationInsightsName string = ''
+
+@description('Application Insights data retention in days')
+@minValue(30)
+@maxValue(730)
+param appInsightsRetentionDays int = 90
+
+@description('Application Insights daily data cap in GB (0 = no cap)')
+@minValue(0)
+param appInsightsDailyCapGB int = 0
+
+@description('Disable IP masking in Application Insights for detailed telemetry')
+param appInsightsDisableIpMasking bool = false
+
+// ========================================
+// Malware Detection Alert Parameters
+// ========================================
+
+@description('Enable alerts when malware is detected')
+param enableMalwareAlerts bool = true
+
+@description('Resource ID of the Action Group to notify on malware detection')
+@metadata({
+  example: '/subscriptions/{subscriptionId}/resourceGroups/{resourceGroup}/providers/Microsoft.Insights/actionGroups/{actionGroupName}'
+})
+param malwareAlertActionGroupId string = ''
+
+@description('Alert threshold: number of malware detections to trigger alert')
+@minValue(1)
+param malwareAlertThreshold int = 1
+
+@description('Time window for malware alert evaluation (in minutes)')
+@minValue(1)
+@maxValue(1440)
+param malwareAlertEvaluationMinutes int = 5
+
+// ========================================
 // Tags
 // ========================================
 
@@ -161,6 +205,7 @@ var resourceSuffix = uniqueString(resourceGroup().id, applicationName, environme
 var acrName = !empty(containerRegistryName) ? containerRegistryName : 'acr${applicationName}${resourceSuffix}'
 var storageAcctName = !empty(storageAccountName) ? storageAccountName : 'st${applicationName}${resourceSuffix}'
 var logAnalyticsName = 'log-${applicationName}-${environmentName}-${resourceSuffix}'
+var appInsightsName = !empty(applicationInsightsName) ? applicationInsightsName : 'appi-${applicationName}-${environmentName}'
 var containerEnvironmentName = 'cae-${applicationName}-${environmentName}'
 
 // ========================================
@@ -174,6 +219,22 @@ module logAnalytics './modules/log-analytics.bicep' = if (!useExistingManagedEnv
     workspaceName: logAnalyticsName
     location: location
     retentionInDays: logRetentionDays
+    tags: tags
+  }
+}
+
+// Deploy Application Insights (linked to Log Analytics workspace)
+module applicationInsights './modules/app-insights.bicep' = if (enableApplicationInsights) {
+  name: 'deploy-app-insights'
+  params: {
+    applicationInsightsName: appInsightsName
+    location: location
+    logAnalyticsWorkspaceId: !useExistingManagedEnvironment ? logAnalytics.outputs.workspaceId : ''
+    applicationType: 'web'
+    retentionInDays: appInsightsRetentionDays
+    dailyDataCapInGB: appInsightsDailyCapGB
+    disableIpMasking: appInsightsDisableIpMasking
+    samplingPercentage: 100
     tags: tags
   }
 }
@@ -257,6 +318,7 @@ module containerApp './modules/container-app.bicep' = {
     aadTenantId: aadTenantId
     aadClientId: aadClientId
     aadAudience: aadAudience
+    applicationInsightsConnectionString: enableApplicationInsights ? applicationInsights.outputs.connectionString : ''
     tags: tags
   }
 }
@@ -272,6 +334,42 @@ resource acrPullRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-
     roleDefinitionId: acrPullRoleDefinitionId
     principalId: containerApp.outputs.principalId
     principalType: 'ServicePrincipal'
+  }
+}
+
+// Create metric alert for malware detections (optional)
+resource malwareDetectionAlert 'Microsoft.Insights/metricAlerts@2018-03-01' = if (enableMalwareAlerts && enableApplicationInsights && !empty(malwareAlertActionGroupId)) {
+  name: '${applicationName}-malware-detection-alert'
+  location: 'global'
+  tags: tags
+  properties: {
+    description: 'Alert triggered when malware is detected by the ClamAV scanning API'
+    severity: 2 // Critical (0=Critical, 1=Error, 2=Warning, 3=Informational, 4=Verbose)
+    enabled: true
+    scopes: [
+      enableApplicationInsights ? applicationInsights.outputs.applicationInsightsId : ''
+    ]
+    evaluationFrequency: 'PT1M' // Evaluate every minute
+    windowSize: 'PT${malwareAlertEvaluationMinutes}M' // Time window (e.g., PT5M for 5 minutes)
+    criteria: {
+      'odata.type': 'Microsoft.Azure.Monitor.MultipleResourceMultipleMetricCriteria'
+      allOf: [
+        {
+          name: 'MalwareDetections'
+          metricName: 'MalwareDetections'
+          operator: 'GreaterThanOrEqual'
+          threshold: malwareAlertThreshold
+          timeAggregation: 'Total'
+          dimensions: []
+          criterionType: 'StaticThresholdCriterion'
+        }
+      ]
+    }
+    actions: [
+      {
+        actionGroupId: malwareAlertActionGroupId
+      }
+    ]
   }
 }
 
@@ -308,3 +406,21 @@ output logAnalyticsWorkspaceName string = useExistingManagedEnvironment ? 'N/A -
 
 @description('Container App system-assigned managed identity principal ID')
 output containerAppPrincipalId string = containerApp.outputs.principalId
+
+@description('Application Insights connection string (if enabled)')
+output applicationInsightsConnectionString string = enableApplicationInsights ? applicationInsights.outputs.connectionString : 'Not enabled'
+
+@description('Application Insights instrumentation key (if enabled)')
+output applicationInsightsInstrumentationKey string = enableApplicationInsights ? applicationInsights.outputs.instrumentationKey : 'Not enabled'
+
+@description('Application Insights name (if enabled)')
+output applicationInsightsName string = enableApplicationInsights ? applicationInsights.outputs.applicationInsightsName : 'Not enabled'
+
+@description('Application Insights App ID (if enabled)')
+output applicationInsightsAppId string = enableApplicationInsights ? applicationInsights.outputs.appId : 'Not enabled'
+
+@description('Malware detection alert name (if enabled)')
+output malwareAlertName string = (enableMalwareAlerts && enableApplicationInsights && !empty(malwareAlertActionGroupId)) ? malwareDetectionAlert.name : 'Not enabled'
+
+@description('Malware detection alert ID (if enabled)')
+output malwareAlertId string = (enableMalwareAlerts && enableApplicationInsights && !empty(malwareAlertActionGroupId)) ? malwareDetectionAlert.id : 'Not enabled'

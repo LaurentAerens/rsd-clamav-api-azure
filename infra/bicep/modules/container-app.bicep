@@ -76,6 +76,9 @@ param aadAudience string = ''
 ])
 param aspNetCoreEnvironment string = 'Production'
 
+@description('Application Insights connection string (empty to disable telemetry)')
+param applicationInsightsConnectionString string = ''
+
 @description('Tags to apply to the Container App')
 param tags object = {}
 
@@ -140,6 +143,22 @@ module containerApp 'br/public:avm/res/app/container-app:0.11.0' = {
           {
             name: 'CLAMD_PORT'
             value: '3310'
+          }
+          {
+            name: 'APPLICATIONINSIGHTS_CONNECTION_STRING'
+            value: applicationInsightsConnectionString
+          }
+          {
+            name: 'Logging__LogLevel__Default'
+            value: aspNetCoreEnvironment == 'Production' ? 'Information' : 'Debug'
+          }
+          {
+            name: 'Logging__LogLevel__Microsoft'
+            value: aspNetCoreEnvironment == 'Production' ? 'Warning' : 'Information'
+          }
+          {
+            name: 'Logging__LogLevel__Microsoft.AspNetCore'
+            value: aspNetCoreEnvironment == 'Production' ? 'Warning' : 'Information'
           }
         ]
         volumeMounts: [

@@ -12,7 +12,12 @@ mkdir -p /var/lib/clamav /var/log/clamav
 chown -R clamav:clamav /var/lib/clamav /var/log/clamav
 chmod 755 /var/lib/clamav /var/log/clamav
 
-# Prepare log file for clamd
+# Create symlinks to forward ClamAV logs to stdout
+# This enables Container Apps to capture ClamAV logs in the container logs
+ln -sf /dev/stdout /var/log/clamav/clamd.log
+ln -sf /dev/stdout /var/log/clamav/freshclam.log
+
+# Prepare log directory for permissions
 touch /var/log/clamav/clamd.log
 chown clamav:clamav /var/log/clamav/clamd.log
 

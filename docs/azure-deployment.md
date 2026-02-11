@@ -619,9 +619,325 @@ For detailed pipeline documentation, see [`.pipelines/README.md`](../.pipelines/
 
 ---
 
-## Monitoring and Operations
+## Monitoring and Observability
 
-### Azure Portal Monitoring
+### Application Insights Setup
+
+Application Insights is enabled by default and tracks:
+- **Application logs** - Structured logging from the .NET application
+- **Custom metrics** - Scan performance, malware detections, queue depth
+- **Traces** - Request lifecycle and external dependencies
+- **Exceptions** - Application errors with full context
+- **Container logs** - ClamAV daemon logs via stdout forwarding
+
+#### Enable/Disable Application Insights
+
+**Enable (default)**:
+```bicep
+param enableApplicationInsights = true
+param appInsightsRetentionDays = 90
+```
+
+**Disable** (app runs normally with console logging only):
+```bicep
+param enableApplicationInsights = false
+```
+
+#### Cost Control
+
+Set a daily ingestion cap:
+```bicep
+param appInsightsDailyCapGB = 5  # Stop ingestion after 5GB per day
+```
+
+### Malware Detection Alerts
+
+Get **immediate notifications** when malware is detected in scanned files. This is configured automatically during deployment.
+
+#### Setup
+
+1. **Create an Action Group** in Azure to define how to notify:
+   - Email notifications
+   - SMS messages
+   - Webhooks (integrations with ticketing systems, Slack, etc.)
+   - Push notifications
+
+2. **Enable in deployment**:
+   ```bicep
+   param enableMalwareAlerts = true
+   param malwareAlertActionGroupId = '<your-action-group-id>'
+   ```
+
+3. **Configure alert sensitivity** (optional):
+   ```bicep
+   param malwareAlertThreshold = 1              # Alert on any detection
+   param malwareAlertEvaluationMinutes = 5      # Evaluation window
+   ```
+
+#### Alert Details
+
+When malware is detected:
+- ✅ Alert fires **within 1 minute**
+- ✅ Includes malware name, file name, and timestamp
+- ✅ Severity: **Warning**
+- ✅ Auto-resolves when no more detections
+
+#### Example: Email Notification
+
+```bash
+# Create action group
+az monitor action-group create \
+  --resource-group $RESOURCE_GROUP \
+  --name SecurityTeam \
+  --short-name "Security"
+
+# Add email recipient
+az monitor action-group action add \
+  --resource-group $RESOURCE_GROUP \
+  --action-group-name SecurityTeam \
+  --action-name NotifySecurityTeam \
+  --action-type email \
+  --receiver-name SecurityTeamEmail \
+  --receiver-email-address security-team@company.com
+
+# Get the resource ID
+ACTION_GROUP_ID=$(az monitor action-group show \
+  --resource-group $RESOURCE_GROUP \
+  --name SecurityTeam \
+  --query id -o tsv)
+
+# Use in deployment
+az deployment group create \
+  --template-file main.bicep \
+  --parameters enableMalwareAlerts=true \
+  --parameters malwareAlertActionGroupId=$ACTION_GROUP_ID
+```
+
+#### Disable Alerts
+
+To disable malware alerts:
+```bicep
+param enableMalwareAlerts = false
+# OR leave actionGroupId empty:
+param malwareAlertActionGroupId = ''
+```
+
+### Querying Telemetry
+
+#### Scan Performance Metrics
+
+Track scan duration, success rate, and malware detections:
+
+```kusto
+// Scan duration percentiles over time
+customMetrics
+| where name == "ScanDuration"
+| summarize avg(value) as AvgMs, percentile(value, 95) as P95Ms by bin(timestamp, 1h)
+| order by timestamp desc
+```
+
+```kusto
+// Malware detection rate
+customMetrics
+| where name == "MalwareDetections"
+| summarize TotalDetections=sum(value) by ScanType=tostring(customDimensions.ScanType)
+| sort by TotalDetections desc
+```
+
+```kusto
+// File size distribution of scanned files
+customMetrics
+| where name == "FileSizeScanned"
+| summarize AvgSizeKB=avg(value), Count=count() by FileSizeCategory=tostring(customDimensions.FileSizeCategory)
+| sort by Count desc
+```
+
+#### Background Queue Health
+
+Monitor async job queue depth and worker utilization:
+
+```kusto
+// Queue depth over time
+customMetrics
+| where name == "BackgroundQueueDepth"
+| summarize AvgQueueDepth=avg(value), MaxQueueDepth=max(value) by bin(timestamp, 5m)
+| order by timestamp desc
+```
+
+```kusto
+// Worker utilization trends
+customMetrics
+| where name == "WorkerUtilization"
+| summarize UtilizationPercent=avg(value) by bin(timestamp, 1h)
+| order by timestamp desc
+```
+
+#### Error Analysis
+
+Debug scan failures and identify patterns:
+
+```kusto
+// Scan failures by error category
+customMetrics
+| where name == "ScanFailures"
+| summarize FailureCount=sum(value) by ErrorCategory=tostring(customDimensions.ErrorCategory)
+| sort by FailureCount desc
+```
+
+```kusto
+// Exception details with stack traces
+exceptions
+| where cloud_RoleName == "ClamAV API"
+| summarize Count=count() by ProblemId, type
+| sort by Count desc
+```
+
+#### Application Logs
+
+View structured logs with full context:
+
+```kusto
+// All malware detections with details
+traces
+| where message contains "Malware detected"
+| project timestamp, message, severityLevel, customDimensions
+| order by timestamp desc
+| limit 100
+```
+
+```kusto
+// Scan job processing timeline
+traces
+| where message contains "job" and (message contains "Started" or message contains "complete")
+| project timestamp, message, operation_Id
+| sort by operation_Id, timestamp
+```
+
+### Creating Dashboards
+
+Create custom dashboards to monitor key metrics:
+
+1. **Go to Application Insights** → **Workbooks** → **+ New**
+2. **Add charts for**:
+   - Scan duration (avg, p95)
+   - Malware detection rate
+   - Queue depth trends
+   - Worker utilization
+   - Error rates
+   - Request success rate
+
+3. **Set refresh interval** to 5 minutes
+4. **Pin to dashboard** for easy access
+
+### Setting Up Alerts
+
+#### Malware Detection Alerts (Automatic)
+
+Malware detection alerts are **automatically configured during deployment** if you provide an Action Group. No manual setup required:
+
+```bicep
+// In your parameter file
+param enableMalwareAlerts = true
+param malwareAlertActionGroupId = '/subscriptions/{subId}/resourceGroups/{rg}/providers/Microsoft.Insights/actionGroups/SecurityTeam'
+```
+
+The alert will:
+- ✅ Trigger whenever malware is detected (within 5-minute window)
+- ✅ Send notifications to your action group (email, SMS, webhook, etc.)
+- ✅ Include detection details and timestamp
+- ✅ Respect severity level (Warning) and auto-resolve
+
+**To create an Action Group first:**
+
+```bash
+# Create action group
+az monitor action-group create \
+  --resource-group $RESOURCE_GROUP \
+  --name SecurityTeamAlerts \
+  --short-name "SecAlert"
+
+# Add email action
+az monitor action-group action add \
+  --resource-group $RESOURCE_GROUP \
+  --action-group-name SecurityTeamAlerts \
+  --action-name EmailSecTeam \
+  --action-type email \
+  --receiver-name SecurityTeamEmail \
+  --receiver-email-address security-team@company.com
+
+# Get the Action Group ID for deployment
+az monitor action-group show \
+  --resource-group $RESOURCE_GROUP \
+  --name SecurityTeamAlerts \
+  --query id -o tsv
+```
+
+Then use the ID in your parameter file:
+```bicep
+param malwareAlertActionGroupId = '<output-from-above>'
+```
+
+#### Additional Custom Alerts
+
+Create additional alerts for other conditions:
+
+```bash
+# Alert: High queue depth
+az monitor metrics alert create \
+  --name "ClamAV-QueueDepthAlert" \
+  --resource-group $RESOURCE_GROUP \
+  --scopes /subscriptions/{sub-id}/resourceGroups/$RESOURCE_GROUP/providers/microsoft.insights/components/appi-clamav-api-prod \
+  --condition "avg customMetrics.BackgroundQueueDepth > 50"
+
+# Alert: High error rate
+az monitor metrics alert create \
+  --name "ClamAV-HighErrorRate" \
+  --resource-group $RESOURCE_GROUP \
+  --scopes /subscriptions/{sub-id}/resourceGroups/$RESOURCE_GROUP/providers/microsoft.insights/components/appi-clamav-api-prod \
+  --condition "count customMetrics.ScanFailures > 5 in 1h"
+
+# Alert: Slow scans
+az monitor metrics alert create \
+  --name "ClamAV-SlowScans" \
+  --resource-group $RESOURCE_GROUP \
+  --scopes /subscriptions/{sub-id}/resourceGroups/$RESOURCE_GROUP/providers/microsoft.insights/components/appi-clamav-api-prod \
+  --condition "percentile(customMetrics.ScanDuration, 95) > 30000" \
+  --description "Alert when scan takes longer than 30 seconds (p95)"
+```
+
+### ClamAV Daemon Logs
+
+ClamAV logs are now captured via stdout and appear in Application Insights:
+
+```kusto
+// Find clamd startup messages
+ContainerAppConsoleLogs_CL
+| where Log_s contains "clamd"
+| where Log_s contains "started" or Log_s contains "listening"
+| order by TimeGenerated desc
+```
+
+```kusto
+// Find freshclam database update messages
+ContainerAppConsoleLogs_CL
+| where Log_s contains "freshclam"
+| where Log_s contains "updated" or Log_s contains "database"
+| order by TimeGenerated desc
+```
+
+```kusto
+// Find ClamAV errors or warnings
+ContainerAppConsoleLogs_CL
+| where Log_s contains "ERROR" or Log_s contains "WARNING"
+| where Log_s contains "clam"
+| order by TimeGenerated desc
+```
+
+---
+
+## Azure Container Apps Logs
+
+### Log Stream
 
 1. **Container App Metrics**:
    - Go to Container App > Monitoring > Metrics
