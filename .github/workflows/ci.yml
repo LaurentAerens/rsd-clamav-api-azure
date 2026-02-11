@@ -1,19 +1,101 @@
-name: CI - Build and Test
+name: CI - Build, Test & Security
 
 on:
   push:
     branches: [ main ]
     paths:
       - "src/**"
+      - "Dockerfile"
+      - ".github/workflows/**"
   pull_request:
     branches: [ main ]
     paths:
       - "src/**"
+      - "Dockerfile"
+  schedule:
+    # Run daily at 1 AM UTC for scheduled security scans
+    - cron: '0 1 * * *'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 
 jobs:
+  # Core Build & Unit Tests
   build-and-test:
+    name: Build & Unit Tests
     uses: ./.github/workflows/build-test-template.yml
     with:
       project_name: ClamAV.Api
       project_path: src/Arcus.ClamAV
       run_tests: true
+
+  # Code Quality & SAST
+  code-quality:
+    name: Code Quality Analysis
+    needs: [build-and-test]
+    uses: ./.github/workflows/code-quality.yml
+
+  # Container Security
+  container-security:
+    name: Container Security
+    uses: ./.github/workflows/container-security.yml
+
+  # Dependency Scanning
+  dependency-scanning:
+    name: Dependency Scans
+    uses: ./.github/workflows/dependency-scanning.yml
+
+  # Bicep Infrastructure Validation
+  bicep-validation:
+    name: Infrastructure as Code
+    if: |
+      contains(github.event.head_commit.modified, 'infra/bicep/') ||
+      github.event_name == 'pull_request'
+    uses: ./.github/workflows/bicep-validate.yml
+
+  # Integration Tests (only on main branch)
+  integration-tests:
+    name: Integration Tests
+    needs: [build-and-test]
+    if: github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch'
+    uses: ./.github/workflows/test-integration.yml
+
+  # PR Analytics (only on PRs)
+  pr-analytics:
+    name: PR Analytics
+    if: github.event_name == 'pull_request'
+    uses: ./.github/workflows/pr-analytics.yml
+
+  # Quality Gates Summary
+  quality-gates:
+    name: Quality Gates Summary
+    runs-on: ubuntu-latest
+    needs: [build-and-test, code-quality, container-security, dependency-scanning]
+    if: always()
+    
+    steps:
+      - name: Check Quality Gates
+        run: |
+          echo "## Quality Gates Status"
+          echo ""
+          echo "- Build & Unit Tests: ${{ needs.build-and-test.result }}"
+          echo "- Code Quality: ${{ needs.code-quality.result }}"
+          echo "- Container Security: ${{ needs.container-security.result }}"
+          echo "- Dependency Scanning: ${{ needs.dependency-scanning.result }}"
+          
+          # Exit with failure if any critical check failed
+          if [[ "${{ needs.build-and-test.result }}" == "failure" ]]; then
+            echo "❌ Build or tests failed"
+            exit 1
+          fi
+          if [[ "${{ needs.code-quality.result }}" == "failure" ]]; then
+            echo "⚠️ Code quality issues detected"
+            exit 1
+          fi
+          if [[ "${{ needs.container-security.result }}" == "failure" ]]; then
+            echo "🔒 Container security issues detected"
+            exit 1
+          fi
+          
+          echo "✅ All quality gates passed!"

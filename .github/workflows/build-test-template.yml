@@ -51,3 +51,30 @@ jobs:
         CI: true
       run: |
         dotnet build --no-restore -p:CI=${CI} ${{ inputs.project_path }}
+
+    - name: Run Tests
+      if: ${{ inputs.run_tests }}
+      run: |
+        dotnet test src/Arcus.ClamAV.Tests/Arcus.ClamAV.Tests.csproj \
+          --no-build \
+          --verbosity normal \
+          --logger "trx;LogFileName=test-results.trx" \
+          --collect:"XPlat Code Coverage" \
+          --configuration Release
+
+    - name: Upload Coverage Reports
+      if: ${{ inputs.run_tests }}
+      uses: codecov/codecov-action@v4
+      with:
+        files: ./coverage.cobertura.xml
+        flags: unittests
+        name: codecov-umbrella
+        fail_ci_if_error: false
+        token: ${{ secrets.CODECOV_TOKEN }}
+
+    - name: Publish Test Results
+      if: always()
+      uses: EnricoMi/publish-unit-test-result-action@v2
+      with:
+        files: '**/test-results.trx'
+        check_name: Unit Test Results
