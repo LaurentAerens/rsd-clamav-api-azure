@@ -1,0 +1,435 @@
+# Azure Container Apps Deployment Pipeline Template
+#
+# Reusable template for building and deploying the ClamAV API to Azure Container Apps
+#
+# This template provides a complete CI/CD pipeline with three stages:
+# 1. Build & Push - Build Docker image and push to Azure Container Registry
+# 2. Deploy Infrastructure - Deploy/update Azure resources using Bicep
+# 3. Update Container App - Update the container app with the new image
+#
+# Usage:
+#   - extends: .pipelines/container-app-deploy.yml
+#     parameters:
+#       environmentName: 'dev'
+#       azureSubscription: 'Azure Service Connection Name'
+#       resourceGroupName: 'rg-clamav-dev'
+#       # ... other parameters
+
+parameters:
+  # ========================================
+  # Required Parameters
+  # ========================================
+  - name: environmentName
+    type: string
+    displayName: 'Environment Name'
+    # Example: 'dev', 'staging', 'prod'
+
+  - name: azureSubscription
+    type: string
+    displayName: 'Azure Service Connection'
+    # Name of the Azure DevOps service connection with permissions to deploy
+
+  - name: resourceGroupName
+    type: string
+    displayName: 'Azure Resource Group'
+    # Target resource group for deployment
+
+  - name: location
+    type: string
+    displayName: 'Azure Region'
+    default: 'eastus'
+    # Azure region for resources (e.g., 'eastus', 'westeurope')
+
+  # ========================================
+  # Container Registry Parameters
+  # ========================================
+  - name: containerRegistryName
+    type: string
+    displayName: 'Container Registry Name'
+    default: ''
+    # Leave empty for auto-generated name based on resource group
+
+  # ========================================
+  # Container App Parameters
+  # ========================================
+  - name: containerAppName
+    type: string
+    displayName: 'Container App Name'
+    default: ''
+    # Leave empty to use default naming: 'clamav-api-{environmentName}'
+
+  - name: applicationName
+    type: string
+    displayName: 'Application Name'
+    default: 'clamav-api'
+    # Base name for resources
+
+  # ========================================
+  # Existing Environment (Optional)
+  # ========================================
+  - name: useExistingManagedEnvironment
+    type: boolean
+    displayName: 'Use Existing Container Apps Environment'
+    default: false
+    # Set to true to deploy to existing environment
+
+  - name: existingManagedEnvironmentName
+    type: string
+    displayName: 'Existing Environment Name'
+    default: ''
+    # Required if useExistingManagedEnvironment is true
+
+  - name: existingManagedEnvironmentResourceGroup
+    type: string
+    displayName: 'Existing Environment Resource Group'
+    default: ''
+    # Defaults to deployment resource group if empty
+
+  # ========================================
+  # Authentication Parameters
+  # ========================================
+  - name: enableAuthentication
+    type: boolean
+    displayName: 'Enable Azure AD Authentication'
+    default: true
+
+  - name: aadClientId
+    type: string
+    displayName: 'Azure AD Client ID'
+    default: ''
+    # Required if enableAuthentication is true
+    # Use pipeline variable for security: $(AAD_CLIENT_ID)
+
+  - name: aadTenantId
+    type: string
+    displayName: 'Azure AD Tenant ID'
+    default: ''
+    # Leave empty to use subscription tenant
+
+  # ========================================
+  # Build Parameters
+  # ========================================
+  - name: dockerfilePath
+    type: string
+    displayName: 'Dockerfile Path'
+    default: '$(Build.SourcesDirectory)/Dockerfile'
+
+  - name: dockerBuildContext
+    type: string
+    displayName: 'Docker Build Context'
+    default: '$(Build.SourcesDirectory)'
+
+  - name: imageTag
+    type: string
+    displayName: 'Image Tag'
+    default: '$(Build.BuildNumber)'
+    # Use Build.BuildNumber for unique tags
+
+  # ========================================
+  # Application Configuration
+  # ========================================
+  - name: maxFileSizeMB
+    type: number
+    displayName: 'Max File Size (MB)'
+    default: 200
+
+  - name: maxConcurrentWorkers
+    type: number
+    displayName: 'Max Concurrent Workers'
+    default: 4
+
+  - name: minReplicas
+    type: number
+    displayName: 'Minimum Replicas'
+    default: 1
+
+  - name: maxReplicas
+    type: number
+    displayName: 'Maximum Replicas'
+    default: 5
+
+  - name: cpuCores
+    type: string
+    displayName: 'CPU Cores'
+    default: '1.0'
+
+  - name: memorySize
+    type: string
+    displayName: 'Memory Size'
+    default: '2.0Gi'
+
+  # ========================================
+  # Deployment Options
+  # ========================================
+  - name: deployInfrastructure
+    type: boolean
+    displayName: 'Deploy Infrastructure'
+    default: true
+    # Set to false to skip infrastructure deployment (app update only)
+
+  - name: validateBicepOnly
+    type: boolean
+    displayName: 'Validate Only (No Deployment)'
+    default: false
+    # Set to true for validation without deployment
+
+stages:
+  # ========================================
+  # Stage 1: Build & Push Container Image
+  # ========================================
+  - stage: Build
+    displayName: 'Build & Push Image'
+    jobs:
+      - job: BuildPushImage
+        displayName: 'Build and Push Docker Image'
+        pool:
+          vmImage: 'ubuntu-latest'
+        steps:
+          - checkout: self
+            displayName: 'Checkout Source Code'
+
+          # Get ACR name (either provided or fetch from Azure)
+          - task: AzureCLI@2
+            displayName: 'Get Container Registry Name'
+            inputs:
+              azureSubscription: ${{ parameters.azureSubscription }}
+              scriptType: 'bash'
+              scriptLocation: 'inlineScript'
+              inlineScript: |
+                if [ -z "${{ parameters.containerRegistryName }}" ]; then
+                  echo "Fetching ACR name from resource group..."
+                  ACR_NAME=$(az acr list --resource-group ${{ parameters.resourceGroupName }} --query "[0].name" -o tsv)
+                  if [ -z "$ACR_NAME" ]; then
+                    echo "##vso[task.logissue type=error]No ACR found in resource group. Deploy infrastructure first or provide containerRegistryName parameter."
+                    exit 1
+                  fi
+                else
+                  ACR_NAME="${{ parameters.containerRegistryName }}"
+                fi
+                echo "Using ACR: $ACR_NAME"
+                echo "##vso[task.setvariable variable=acrName;isOutput=true]$ACR_NAME"
+            name: getAcrName
+
+          # Build and push Docker image to ACR
+          - task: AzureCLI@2
+            displayName: 'Build and Push to ACR'
+            inputs:
+              azureSubscription: ${{ parameters.azureSubscription }}
+              scriptType: 'bash'
+              scriptLocation: 'inlineScript'
+              inlineScript: |
+                ACR_NAME=$(getAcrName.acrName)
+                IMAGE_NAME="${{ parameters.applicationName }}"
+                IMAGE_TAG="${{ parameters.imageTag }}"
+                
+                echo "Building image: $ACR_NAME.azurecr.io/$IMAGE_NAME:$IMAGE_TAG"
+                
+                az acr build \
+                  --registry $ACR_NAME \
+                  --image $IMAGE_NAME:$IMAGE_TAG \
+                  --image $IMAGE_NAME:latest \
+                  --file ${{ parameters.dockerfilePath }} \
+                  ${{ parameters.dockerBuildContext }}
+                
+                echo "##vso[task.setvariable variable=fullImageName;isOutput=true]$ACR_NAME.azurecr.io/$IMAGE_NAME:$IMAGE_TAG"
+            name: buildPush
+
+  # ========================================
+  # Stage 2: Deploy Infrastructure
+  # ========================================
+  - stage: DeployInfrastructure
+    displayName: 'Deploy Infrastructure'
+    dependsOn: Build
+    condition: and(succeeded(), eq('${{ parameters.deployInfrastructure }}', true))
+    jobs:
+      - job: DeployBicep
+        displayName: 'Deploy Bicep Templates'
+        pool:
+          vmImage: 'ubuntu-latest'
+        variables:
+          acrName: $[ stageDependencies.Build.BuildPushImage.outputs['getAcrName.acrName'] ]
+        steps:
+          - checkout: self
+            displayName: 'Checkout Source Code'
+
+          # Validate Bicep (what-if)
+          - task: AzureCLI@2
+            displayName: 'Validate Bicep Template (What-If)'
+            inputs:
+              azureSubscription: ${{ parameters.azureSubscription }}
+              scriptType: 'bash'
+              scriptLocation: 'inlineScript'
+              inlineScript: |
+                echo "Running Bicep what-if analysis..."
+                az deployment group what-if \
+                  --resource-group ${{ parameters.resourceGroupName }} \
+                  --template-file infra/bicep/main.bicep \
+                  --parameters environmentName='${{ parameters.environmentName }}' \
+                  --parameters location='${{ parameters.location }}' \
+                  --parameters applicationName='${{ parameters.applicationName }}' \
+                  --parameters containerRegistryName='$(acrName)' \
+                  --parameters containerAppName='${{ parameters.containerAppName }}' \
+                  --parameters useExistingManagedEnvironment=${{ parameters.useExistingManagedEnvironment }} \
+                  --parameters existingManagedEnvironmentName='${{ parameters.existingManagedEnvironmentName }}' \
+                  --parameters existingManagedEnvironmentResourceGroup='${{ parameters.existingManagedEnvironmentResourceGroup }}' \
+                  --parameters enableAuthentication=${{ parameters.enableAuthentication }} \
+                  --parameters aadClientId='${{ parameters.aadClientId }}' \
+                  --parameters aadTenantId='${{ parameters.aadTenantId }}' \
+                  --parameters containerImageTag='${{ parameters.imageTag }}' \
+                  --parameters minReplicas=${{ parameters.minReplicas }} \
+                  --parameters maxReplicas=${{ parameters.maxReplicas }} \
+                  --parameters containerCpuCores='${{ parameters.cpuCores }}' \
+                  --parameters containerMemory='${{ parameters.memorySize }}' \
+                  --parameters maxFileSizeMB=${{ parameters.maxFileSizeMB }} \
+                  --parameters maxConcurrentWorkers=${{ parameters.maxConcurrentWorkers }}
+
+          # Deploy Infrastructure
+          - task: AzureCLI@2
+            displayName: 'Deploy Bicep Template'
+            condition: eq('${{ parameters.validateBicepOnly }}', false)
+            inputs:
+              azureSubscription: ${{ parameters.azureSubscription }}
+              scriptType: 'bash'
+              scriptLocation: 'inlineScript'
+              inlineScript: |
+                echo "Deploying infrastructure to resource group: ${{ parameters.resourceGroupName }}"
+                
+                az deployment group create \
+                  --resource-group ${{ parameters.resourceGroupName }} \
+                  --template-file infra/bicep/main.bicep \
+                  --parameters environmentName='${{ parameters.environmentName }}' \
+                  --parameters location='${{ parameters.location }}' \
+                  --parameters applicationName='${{ parameters.applicationName }}' \
+                  --parameters containerRegistryName='$(acrName)' \
+                  --parameters containerAppName='${{ parameters.containerAppName }}' \
+                  --parameters useExistingManagedEnvironment=${{ parameters.useExistingManagedEnvironment }} \
+                  --parameters existingManagedEnvironmentName='${{ parameters.existingManagedEnvironmentName }}' \
+                  --parameters existingManagedEnvironmentResourceGroup='${{ parameters.existingManagedEnvironmentResourceGroup }}' \
+                  --parameters enableAuthentication=${{ parameters.enableAuthentication }} \
+                  --parameters aadClientId='${{ parameters.aadClientId }}' \
+                  --parameters aadTenantId='${{ parameters.aadTenantId }}' \
+                  --parameters containerImageTag='${{ parameters.imageTag }}' \
+                  --parameters minReplicas=${{ parameters.minReplicas }} \
+                  --parameters maxReplicas=${{ parameters.maxReplicas }} \
+                  --parameters containerCpuCores='${{ parameters.cpuCores }}' \
+                  --parameters containerMemory='${{ parameters.memorySize }}' \
+                  --parameters maxFileSizeMB=${{ parameters.maxFileSizeMB }} \
+                  --parameters maxConcurrentWorkers=${{ parameters.maxConcurrentWorkers }} \
+                  --output json > deployment-output.json
+                
+                # Extract and display outputs
+                CONTAINER_APP_URL=$(cat deployment-output.json | jq -r '.properties.outputs.containerAppUrl.value')
+                CONTAINER_APP_FQDN=$(cat deployment-output.json | jq -r '.properties.outputs.containerAppFqdn.value')
+                
+                echo "Deployment completed successfully!"
+                echo "Container App URL: $CONTAINER_APP_URL"
+                echo "Container App FQDN: $CONTAINER_APP_FQDN"
+                
+                echo "##vso[task.setvariable variable=containerAppUrl;isOutput=true]$CONTAINER_APP_URL"
+                echo "##vso[task.setvariable variable=containerAppFqdn;isOutput=true]$CONTAINER_APP_FQDN"
+            name: deployInfra
+
+  # ========================================
+  # Stage 3: Update Container App
+  # ========================================
+  - stage: UpdateContainerApp
+    displayName: 'Update Container App'
+    dependsOn:
+      - Build
+      - DeployInfrastructure
+    condition: and(succeeded(), eq('${{ parameters.validateBicepOnly }}', false))
+    jobs:
+      - job: UpdateApp
+        displayName: 'Update Container App Image'
+        pool:
+          vmImage: 'ubuntu-latest'
+        variables:
+          fullImageName: $[ stageDependencies.Build.BuildPushImage.outputs['buildPush.fullImageName'] ]
+          containerAppFqdn: $[ stageDependencies.DeployInfrastructure.DeployBicep.outputs['deployInfra.containerAppFqdn'] ]
+        steps:
+          - task: AzureCLI@2
+            displayName: 'Update Container App with New Image'
+            inputs:
+              azureSubscription: ${{ parameters.azureSubscription }}
+              scriptType: 'bash'
+              scriptLocation: 'inlineScript'
+              inlineScript: |
+                CONTAINER_APP_NAME="${{ parameters.containerAppName }}"
+                if [ -z "$CONTAINER_APP_NAME" ]; then
+                  CONTAINER_APP_NAME="clamav-api-${{ parameters.environmentName }}"
+                fi
+                
+                echo "Updating Container App: $CONTAINER_APP_NAME"
+                echo "New Image: $(fullImageName)"
+                
+                az containerapp update \
+                  --name $CONTAINER_APP_NAME \
+                  --resource-group ${{ parameters.resourceGroupName }} \
+                  --image $(fullImageName)
+                
+                echo "Container App updated successfully!"
+                echo "Waiting for deployment to stabilize..."
+                sleep 30
+
+          - task: AzureCLI@2
+            displayName: 'Verify Deployment Health'
+            inputs:
+              azureSubscription: ${{ parameters.azureSubscription }}
+              scriptType: 'bash'
+              scriptLocation: 'inlineScript'
+              inlineScript: |
+                CONTAINER_APP_NAME="${{ parameters.containerAppName }}"
+                if [ -z "$CONTAINER_APP_NAME" ]; then
+                  CONTAINER_APP_NAME="clamav-api-${{ parameters.environmentName }}"
+                fi
+                
+                echo "Checking Container App health..."
+                HEALTH_STATUS=$(az containerapp show \
+                  --name $CONTAINER_APP_NAME \
+                  --resource-group ${{ parameters.resourceGroupName }} \
+                  --query "properties.runningStatus" -o tsv)
+                
+                echo "Container App Status: $HEALTH_STATUS"
+                
+                if [ "$HEALTH_STATUS" != "Running" ]; then
+                  echo "##vso[task.logissue type=warning]Container App is not in Running state: $HEALTH_STATUS"
+                fi
+                
+                # Test health endpoint if available
+                if [ ! -z "$(containerAppFqdn)" ]; then
+                  echo "Testing health endpoint: https://$(containerAppFqdn)/healthz"
+                  
+                  # Try health check (may fail if authentication is required)
+                  HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" https://$(containerAppFqdn)/healthz || echo "000")
+                  
+                  if [ "$HTTP_STATUS" == "200" ]; then
+                    echo "✓ Health check passed (HTTP $HTTP_STATUS)"
+                  elif [ "$HTTP_STATUS" == "401" ]; then
+                    echo "✓ Container App is running (authentication required - HTTP 401)"
+                  else
+                    echo "⚠ Health check returned HTTP $HTTP_STATUS"
+                  fi
+                fi
+
+          # Summary
+          - task: AzureCLI@2
+            displayName: 'Deployment Summary'
+            inputs:
+              azureSubscription: ${{ parameters.azureSubscription }}
+              scriptType: 'bash'
+              scriptLocation: 'inlineScript'
+              inlineScript: |
+                echo "========================================="
+                echo "  🎉 Deployment Summary"
+                echo "========================================="
+                echo "Environment: ${{ parameters.environmentName }}"
+                echo "Resource Group: ${{ parameters.resourceGroupName }}"
+                echo "Container App URL: https://$(containerAppFqdn)"
+                echo "Image: $(fullImageName)"
+                echo "========================================="
+                echo ""
+                echo "Next Steps:"
+                echo "1. Verify the API at: https://$(containerAppFqdn)/swagger"
+                echo "2. Monitor logs in Azure Portal"
+                echo "3. Configure custom domain (optional)"
+                echo "========================================="

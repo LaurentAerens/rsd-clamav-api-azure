@@ -1,0 +1,213 @@
+# Demo Pipeline: ClamAV API to Azure Container Apps
+#
+# This is an example pipeline showing how to use the reusable deployment template.
+# Customize this file for your specific environments and requirements.
+#
+# Prerequisites:
+# 1. Azure DevOps Service Connection configured with permissions to deploy
+# 2. Azure AD App Registration created for authentication (get client ID)
+# 3. Resource group created in Azure
+# 4. Variable groups configured with secrets (recommended)
+#
+# Variable Groups (optional but recommended):
+# - clamav-api-common: Shared variables
+# - clamav-api-dev: Dev environment secrets
+# - clamav-api-prod: Production environment secrets
+
+trigger:
+  branches:
+    include:
+      - main
+      - develop
+  paths:
+    include:
+      - src/*
+      - infra/*
+      - Dockerfile
+      - docker-compose.yml
+
+pr:
+  branches:
+    include:
+      - main
+  paths:
+    include:
+      - src/*
+      - infra/*
+      - Dockerfile
+
+# Pipeline variables (customize these)
+variables:
+  # Global settings
+  applicationName: 'clamav-api'
+  
+  # Azure settings (update these with your values)
+  azureServiceConnection: 'Azure-Production'  # Name of your Azure service connection
+  
+  # Dev environment settings
+  devResourceGroup: 'rg-clamav-dev'
+  devLocation: 'eastus'
+  
+  # Production environment settings
+  prodResourceGroup: 'rg-clamav-prod'
+  prodLocation: 'eastus'
+  
+  # Build settings
+  buildConfiguration: 'Release'
+  
+  # Authentication - USE VARIABLE GROUPS FOR SECRETS!
+  # Example: $(AAD_CLIENT_ID_DEV) from variable group 'clamav-api-dev'
+  # Create variable groups in Azure DevOps Library with these variables:
+  # - AAD_CLIENT_ID_DEV
+  # - AAD_CLIENT_ID_PROD
+
+stages:
+  # ========================================
+  # Stage: Deploy to Development
+  # ========================================
+  - stage: DeployDev
+    displayName: 'Deploy to Development'
+    condition: and(succeeded(), or(eq(variables['Build.SourceBranch'], 'refs/heads/develop'), eq(variables['Build.Reason'], 'PullRequest')))
+    variables:
+      # Link to variable group containing dev secrets
+      # - group: clamav-api-dev
+      # FOR DEMO: Using inline variables (replace with variable group in production)
+      aadClientIdDev: ''  # TODO: Set via variable group $(AAD_CLIENT_ID_DEV)
+    jobs:
+      - deployment: DeployDevEnvironment
+        displayName: 'Deploy to Dev'
+        environment: 'ClamAV-Dev'  # Azure DevOps environment for approvals/gates
+        pool:
+          vmImage: 'ubuntu-latest'
+        strategy:
+          runOnce:
+            deploy:
+              steps:
+                - download: none
+                - checkout: self
+                  displayName: 'Checkout Repository'
+                
+                - template: container-app-deploy.yml
+                  parameters:
+                    # Environment
+                    environmentName: 'dev'
+                    azureSubscription: $(azureServiceConnection)
+                    resourceGroupName: $(devResourceGroup)
+                    location: $(devLocation)
+                    
+                    # Application
+                    applicationName: $(applicationName)
+                    
+                    # Authentication (use variable from variable group)
+                    enableAuthentication: true
+                    aadClientId: $(aadClientIdDev)  # Set this in variable group
+                    
+                    # Build
+                    imageTag: '$(Build.BuildNumber)'
+                    
+                    # Scaling - Dev settings
+                    minReplicas: 0  # Scale to zero for cost savings in dev
+                    maxReplicas: 2
+                    cpuCores: '0.5'
+                    memorySize: '1.0Gi'
+                    
+                    # Application settings
+                    maxFileSizeMB: 200
+                    maxConcurrentWorkers: 2
+
+  # ========================================
+  # Stage: Deploy to Production
+  # ========================================
+  - stage: DeployProd
+    displayName: 'Deploy to Production'
+    dependsOn: []  # Remove dependency on dev for direct prod deployments
+    condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/main'))
+    variables:
+      # Link to variable group containing production secrets
+      # - group: clamav-api-prod
+      # FOR DEMO: Using inline variables (replace with variable group in production)
+      aadClientIdProd: ''  # TODO: Set via variable group $(AAD_CLIENT_ID_PROD)
+      
+      # Example: Use existing shared Container Apps environment
+      useSharedEnvironment: false  # Set to true if using shared environment
+      sharedEnvironmentName: 'cae-shared-prod'
+      sharedEnvironmentRG: 'rg-shared-infrastructure'
+    jobs:
+      - deployment: DeployProdEnvironment
+        displayName: 'Deploy to Production'
+        environment: 'ClamAV-Production'  # Requires manual approval in Azure DevOps
+        pool:
+          vmImage: 'ubuntu-latest'
+        strategy:
+          runOnce:
+            deploy:
+              steps:
+                - download: none
+                - checkout: self
+                  displayName: 'Checkout Repository'
+                
+                - template: container-app-deploy.yml
+                  parameters:
+                    # Environment
+                    environmentName: 'prod'
+                    azureSubscription: $(azureServiceConnection)
+                    resourceGroupName: $(prodResourceGroup)
+                    location: $(prodLocation)
+                    
+                    # Application
+                    applicationName: $(applicationName)
+                    
+                    # Use existing Container Apps environment (optional)
+                    useExistingManagedEnvironment: $(useSharedEnvironment)
+                    existingManagedEnvironmentName: $(sharedEnvironmentName)
+                    existingManagedEnvironmentResourceGroup: $(sharedEnvironmentRG)
+                    
+                    # Authentication (use variable from variable group)
+                    enableAuthentication: true
+                    aadClientId: $(aadClientIdProd)  # Set this in variable group
+                    
+                    # Build
+                    imageTag: '$(Build.BuildNumber)'
+                    
+                    # Scaling - Production settings
+                    minReplicas: 2  # Always-on for production
+                    maxReplicas: 10
+                    cpuCores: '1.0'
+                    memorySize: '2.0Gi'
+                    
+                    # Application settings
+                    maxFileSizeMB: 200
+                    maxConcurrentWorkers: 4
+
+# ========================================
+# Additional Stages (Optional)
+# ========================================
+
+# Uncomment to add staging environment
+# - stage: DeployStaging
+#   displayName: 'Deploy to Staging'
+#   dependsOn: DeployDev
+#   condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/main'))
+#   jobs:
+#     - deployment: DeployStagingEnvironment
+#       displayName: 'Deploy to Staging'
+#       environment: 'ClamAV-Staging'
+#       pool:
+#         vmImage: 'ubuntu-latest'
+#       strategy:
+#         runOnce:
+#           deploy:
+#             steps:
+#               - checkout: self
+#               - template: container-app-deploy.yml
+#                 parameters:
+#                   environmentName: 'staging'
+#                   azureSubscription: $(azureServiceConnection)
+#                   resourceGroupName: 'rg-clamav-staging'
+#                   location: $(prodLocation)
+#                   applicationName: $(applicationName)
+#                   enableAuthentication: true
+#                   aadClientId: $(AAD_CLIENT_ID_STAGING)
+#                   imageTag: '$(Build.BuildNumber)'
+#                   minReplicas: 1
+#                   maxReplicas: 3
