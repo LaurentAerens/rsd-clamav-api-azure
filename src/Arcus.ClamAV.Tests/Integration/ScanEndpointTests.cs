@@ -210,5 +210,120 @@ public class ScanEndpointTests : IAsyncLifetime
         content!.Jobs.Should().NotBeNull();
         content.Count.Should().BeGreaterThanOrEqualTo(0);
     }
+
+    [Fact(Skip = "Requires running ClamAV instance for JSON scanning")]
+    public async Task JsonScanEndpoint_WithCleanPayload_ShouldReturn200()
+    {
+        // Arrange - JSON with base64 content
+        var originalContent = "Hello, this is a clean test file"u8.ToArray();
+        var base64Content = Convert.ToBase64String(originalContent);
+        
+        var jsonPayload = new
+        {
+            id = "12345",
+            timestamp = "2024-01-01T00:00:00Z",
+            content = base64Content,
+            metadata = new { type = "document", size = originalContent.Length }
+        };
+
+        // Act
+        var response = await _client.PostAsJsonAsync("/scan/json", new { payload = jsonPayload });
+
+        // Assert
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        
+        var result = await response.Content.ReadFromJsonAsync<JsonScanResult>();
+        result.Should().NotBeNull();
+        result!.Status.Should().Be("clean");
+        result.Base64ItemsFound.Should().Be(1);
+        result.ItemsScanned.Should().BeGreaterThan(0);
+    }
+
+    [Fact(Skip = "Requires running ClamAV instance for JSON scanning")]
+    public async Task JsonScanEndpoint_WithMultipleBase64Items_ShouldScanAll()
+    {
+        // Arrange - JSON with multiple base64 items
+        var content1 = Convert.ToBase64String("First file content"u8.ToArray());
+        var content2 = Convert.ToBase64String("Second file content"u8.ToArray());
+        
+        var jsonPayload = new
+        {
+            attachments = new[]
+            {
+                new { name = "file1.txt", data = content1 },
+                new { name = "file2.txt", data = content2 }
+            }
+        };
+
+        // Act
+        var response = await _client.PostAsJsonAsync("/scan/json", new { payload = jsonPayload });
+
+        // Assert
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        
+        var result = await response.Content.ReadFromJsonAsync<JsonScanResult>();
+        result.Should().NotBeNull();
+        result!.Base64ItemsFound.Should().Be(2);
+        result.Details.Should().HaveCountGreaterThan(0);
+    }
+
+    [Fact(Skip = "Requires running ClamAV instance for JSON scanning")]
+    public async Task JsonScanEndpoint_WithNestedBase64_ShouldDetect()
+    {
+        // Arrange - JSON with deeply nested base64 content
+        var base64Content = Convert.ToBase64String("Nested test content"u8.ToArray());
+        
+        var jsonPayload = new
+        {
+            envelope = new
+            {
+                header = new { messageId = "abc123" },
+                body = new
+                {
+                    message = "Some text",
+                    attachment = new
+                    {
+                        fileName = "document.pdf",
+                        contentBytes = base64Content
+                    }
+                }
+            }
+        };
+
+        // Act
+        var response = await _client.PostAsJsonAsync("/scan/json", new { payload = jsonPayload });
+
+        // Assert
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        
+        var result = await response.Content.ReadFromJsonAsync<JsonScanResult>();
+        result.Should().NotBeNull();
+        result!.Base64ItemsFound.Should().BeGreaterThan(0);
+        result.Details.Should().Contain(d => d.Type == "base64_decoded");
+    }
+
+    [Fact(Skip = "Requires running ClamAV instance for JSON scanning")]
+    public async Task JsonScanEndpoint_WithoutBase64_ShouldScanJsonText()
+    {
+        // Arrange - JSON without base64 content
+        var jsonPayload = new
+        {
+            id = "test123",
+            message = "Just a regular message without any base64",
+            count = 42
+        };
+
+        // Act
+        var response = await _client.PostAsJsonAsync("/scan/json", new { payload = jsonPayload });
+
+        // Assert
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        
+        var result = await response.Content.ReadFromJsonAsync<JsonScanResult>();
+        result.Should().NotBeNull();
+        result!.Base64ItemsFound.Should().Be(0);
+        result.ItemsScanned.Should().Be(1); // Just the JSON text itself
+        result.Details.Should().Contain(d => d.Name == "json_payload" && d.Type == "json_text");
+    }
 }
 
