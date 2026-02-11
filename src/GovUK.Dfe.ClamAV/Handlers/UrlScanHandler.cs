@@ -1,6 +1,5 @@
 using GovUK.Dfe.ClamAV.Models;
 using GovUK.Dfe.ClamAV.Services;
-using GovUK.Dfe.CoreLibs.AsyncProcessing.Interfaces;
 
 namespace GovUK.Dfe.ClamAV.Handlers;
 
@@ -8,13 +7,13 @@ public class UrlScanHandler
 {
     private readonly IScanJobService _jobService;
     private readonly IScanProcessingService _scanProcessing;
-    private readonly IBackgroundServiceFactory _backgroundService;
+    private readonly IBackgroundTaskQueue _backgroundService;
     private readonly int _maxFileSizeMb;
 
     public UrlScanHandler(
         IScanJobService jobService,
         IScanProcessingService scanProcessing,
-        IBackgroundServiceFactory backgroundService,
+        IBackgroundTaskQueue backgroundService,
         IConfiguration configuration)
     {
         _jobService = jobService;

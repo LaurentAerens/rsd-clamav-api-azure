@@ -1,9 +1,7 @@
-using GovUK.Dfe.CoreLibs.AsyncProcessing.Interfaces;
-
 namespace GovUK.Dfe.ClamAV.Services;
 
 public class JobCleanupService(
-    IBackgroundServiceFactory backgroundService,
+    IBackgroundTaskQueue backgroundService,
     IScanJobService jobService,
     ILogger<JobCleanupService> logger)
     : IHostedService, IDisposable

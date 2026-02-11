@@ -1,6 +1,5 @@
 using GovUK.Dfe.ClamAV.Models;
 using GovUK.Dfe.ClamAV.Services;
-using GovUK.Dfe.CoreLibs.AsyncProcessing.Interfaces;
 using nClam;
 using System.Net;
 
@@ -9,7 +8,7 @@ namespace GovUK.Dfe.ClamAV.Handlers;
 public class FileScanHandler(
     IScanJobService jobService,
     IScanProcessingService scanProcessing,
-    IBackgroundServiceFactory backgroundService,
+    IBackgroundTaskQueue backgroundService,
     IConfiguration configuration)
 {
     public async Task<IResult> HandleSyncAsync(IFormFile file)

@@ -16,7 +16,7 @@ jobs:
     with:
       project_name: GovUK.Dfe.ClamAV.Api.Client
       project_path: src/GovUK.Dfe.ClamAV.Api.Client
-      run_tests: false
+      run_tests: true
 
   pack-and-release:
     needs: build-and-test

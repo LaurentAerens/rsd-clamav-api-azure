@@ -1,7 +1,7 @@
 # =========================
 # Build stage: restore & publish .NET API
 # =========================
-FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
+FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 WORKDIR /src
 ARG CI
 ENV CI=${CI}
@@ -17,7 +17,7 @@ RUN dotnet publish GovUK.Dfe.ClamAV/GovUK.Dfe.ClamAV.csproj -c Release -p:CI=tru
 # =========================
 # Final stage: ASP.NET runtime + ClamAV
 # =========================
-FROM mcr.microsoft.com/dotnet/aspnet:8.0 AS final
+FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS final
 ENV ASPNETCORE_URLS=http://0.0.0.0:8080 \
 CLAMD_HOST=127.0.0.1 \
 CLAMD_PORT=3310 \
@@ -43,10 +43,11 @@ COPY --from=build /app/publish ./
 # Copy configs & scripts
 WORKDIR /
 COPY conf/clamd.conf /etc/clamav/clamd.conf
-# freshclam.conf is optional; if provided, will override defaults
 COPY conf/freshclam.conf /etc/clamav/freshclam.conf
 COPY scripts/start.sh /start.sh
-RUN chmod +x /start.sh
+# Strip Windows line endings from all copied files
+RUN sed -i 's/\r$//' /etc/clamav/clamd.conf /etc/clamav/freshclam.conf /start.sh && \
+    chmod +x /start.sh
 
 
 # Persist virus DB across restarts (mount a volume in production)

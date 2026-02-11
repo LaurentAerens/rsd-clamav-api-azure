@@ -18,7 +18,6 @@ public static class ScanEndpoints
             .Produces<ScanResponse>(200)
             .Produces<ErrorResponse>(400)
             .Produces(500)
-            .RequireAuthorization("CanRead")
             .WithName("ScanSync")
             .WithDescription("Upload a file for synchronous virus scanning. Waits for scan to complete before returning.")
             .DisableAntiforgery();
@@ -29,7 +28,6 @@ public static class ScanEndpoints
             .Accepts<IFormFile>("multipart/form-data")
             .Produces<AsyncScanResponse>(202)
             .Produces<ErrorResponse>(400)
-            .RequireAuthorization("CanRead")
             .WithName("ScanAsync")
             .WithDescription("Upload a file for asynchronous virus scanning. Returns immediately with a job ID.")
             .DisableAntiforgery();
@@ -40,9 +38,6 @@ public static class ScanEndpoints
             .Accepts<ScanUrlRequest>("application/json")
             .Produces<AsyncScanResponse>(202)
             .Produces<ErrorResponse>(400)
-            .Produces(401)
-            .Produces(403)
-            .RequireAuthorization("CanRead")
             .WithName("ScanAsyncUrl")
             .WithDescription("Download a file from a URL and scan it asynchronously. Returns immediately with job ID. Download and scan happen in background. Set 'isBase64' to true if the URL is Base64 encoded.");
 
@@ -69,9 +64,6 @@ public static class ScanEndpoints
         })
         .Produces<ScanStatusResponse>(200)
         .Produces<ErrorResponse>(404)
-        .Produces(401)
-        .Produces(403)
-        .RequireAuthorization("CanRead")
         .WithName("GetScanStatus")
         .WithDescription("Get the status of an asynchronous scan job");
 
@@ -95,9 +87,6 @@ public static class ScanEndpoints
             });
         })
         .Produces<JobsListResponse>(200)
-        .Produces(401)
-        .Produces(403)
-        .RequireAuthorization("CanRead")
         .WithName("ListJobs")
         .WithDescription("List recent scan jobs (for monitoring/debugging)");
     }
