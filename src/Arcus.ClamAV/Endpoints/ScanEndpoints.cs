@@ -41,6 +41,15 @@ public static class ScanEndpoints
             .WithName("ScanAsyncUrl")
             .WithDescription("Download a file from a URL and scan it asynchronously. Returns immediately with job ID. Download and scan happen in background. Set 'isBase64' to true if the URL is Base64 encoded.");
 
+        // JSON scan endpoint
+        scanGroup.MapPost("/json", async (JsonScanRequest jsonRequest, JsonScanHandler handler) =>
+            await handler.HandleAsync(jsonRequest))
+            .Accepts<JsonScanRequest>("application/json")
+            .Produces<JsonScanResult>(200)
+            .Produces(500)
+            .WithName("ScanJson")
+            .WithDescription("Scan a JSON payload for malware. Automatically detects and decodes any base64-encoded properties, scans each decoded item plus the full JSON text. Perfect for Azure Logic Apps and Functions.");
+
         // Check scan status
         scanGroup.MapGet("/async/{jobId}", (string jobId, IScanJobService jobService) =>
         {

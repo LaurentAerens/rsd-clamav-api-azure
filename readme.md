@@ -16,6 +16,7 @@ It’s designed for local development, testing, and service integration — all 
 - 💬 **Endpoints** for scanning, health checks, and ClamAV version info.
 - ⚡ **Async scanning support** – Upload large files and poll for results (ideal for files >10MB).
 - 🌐 **URL scanning** – Download and scan files from URLs with Base64 support.
+- � **JSON payload scanning** – Automatically detects and scans base64-encoded content within JSON (perfect for Azure Logic Apps & Functions).
 - 🎯 **Performance optimized** – Tuned ClamAV settings + 4 concurrent workers for parallel processing.
 - 💾 **Persistent database volume** so virus definitions are reused between restarts.
 - 🔒 **Stateless HTTP interface** – ideal for CI pipelines or microservices.
@@ -233,6 +234,7 @@ This will:
 | `POST` | `/scan` | Upload a file to scan for viruses (synchronous - waits for results) |
 | `POST` | `/scan/async` | Upload a file for async scanning (returns job ID immediately) |
 | `POST` | `/scan/async/url` | Download a file from URL and scan it asynchronously (with size validation) |
+| `POST` | `/scan/json` | Scan a JSON payload with automatic base64 detection (perfect for Azure integrations) |
 | `GET` | `/scan/async/{jobId}` | Check status of an async scan job |
 | `GET` | `/scan/jobs` | List recent scan jobs (for monitoring) |
 | `GET` | `/swagger` | OpenAPI documentation & interactive UI |
@@ -316,6 +318,105 @@ curl http://localhost:8080/scan/async/def-456
 💡 *For large files (>10MB), use the async endpoints for better performance.*
 
 ---
+� JSON Payload Scanning (Azure Integration)
+
+The `/scan/json` endpoint is designed for Azure Logic Apps, Functions, and Power Automate integrations where file content is often embedded as base64 within JSON messages.
+
+### How It Works
+
+1. Send a JSON payload to `/scan/json`
+2. The API recursively searches through all JSON properties
+3. Any property containing base64-encoded data is automatically detected and decoded
+4. Each decoded item is scanned for malware
+5. The full JSON text is also scanned
+6. Returns comprehensive results showing what was found and scanned
+
+### Example: Azure Logic App Payload
+
+```bash
+curl -X POST http://localhost:8080/scan/json \
+  -H "Content-Type: application/json" \
+  -d '{
+    "payload": {
+      "messageId": "abc-123",
+      "timestamp": "2024-01-01T10:00:00Z",
+      "sender": "user@example.com",
+      "attachment": {
+        "fileName": "document.pdf",
+        "contentBytes": "JVBERi0xLjQKJeLjz9MKMSAwIG9iago8PC9UeXBlL0NhdGFsb2cvUGFnZXMgMiAwIFI+PgplbmRvYmoKMiAwIG9iago8PC9UeXBlL1BhZ2VzL0tpZHNbMyAwIFJdL0NvdW50IDE+PgplbmRvYmoKMyAwIG9iago8PC9UeXBlL1BhZ2UvUGFyZW50IDIgMCBSPj4KZW5kb2JqCnhyZWYKMCA0CjAwMDAwMDAwMDAgNjU1MzUgZgowMDAwMDAwMDE1IDAwMDAwIG4KMDAwMDAwMDA2MCAwMDAwMCBuCjAwMDAwMDAxMTUgMDAwMDAgbgp0cmFpbGVyPDwvUm9vdCAxIDAgUi9TaXplIDQ+PgpzdGFydHhyZWYKMTY1CiUlRU9G"
+      }
+    }
+  }'
+```
+
+Response:
+```json
+{
+  "status": "clean",
+  "itemsScanned": 2,
+  "base64ItemsFound": 1,
+  "scanDurationMs": 145.7,
+  "details": [
+    {
+      "name": "payload.attachment.contentBytes",
+      "type": "base64_decoded",
+      "size": 165,
+      "status": "clean"
+    },
+    {
+      "name": "json_payload",
+      "type": "json_text",
+      "size": 423,
+      "status": "clean"
+    }
+  ]
+}
+```
+
+### What Gets Detected as Base64?
+
+The API uses smart detection:
+- **Minimum length**: 100 characters (avoids false positives)
+- **Character set**: Only valid base64 characters (A-Z, a-z, 0-9, +, /, =)
+- **Proper format**: Correct padding and length (multiple of 4)
+- **Validation**: Successfully decodes without errors
+
+### Benefits for Azure Integrations
+
+✅ **No pre-processing needed** – Send Logic App output directly  
+✅ **Multi-file support** – Scans all base64 properties in arrays/nested objects  
+✅ **Comprehensive scanning** – Both decoded binaries AND JSON text  
+✅ **Clear results** – Know exactly which item was infected  
+✅ **Flexible structure** – No required JSON schema
+
+### Example: Multiple Attachments
+
+```bash
+curl -X POST http://localhost:8080/scan/json \
+  -H "Content-Type: application/json" \
+  -d '{
+    "payload": {
+      "email": {
+        "subject": "Monthly Report",
+        "attachments": [
+          {
+            "name": "report.pdf",
+            "data": "[base64 content...]"
+          },
+          {
+            "name": "data.xlsx",
+            "data": "[base64 content...]"
+          }
+        ]
+      }
+    }
+  }'
+```
+
+The API will find and scan both `attachments[0].data` and `attachments[1].data`, plus the full JSON.
+💡 *Binary files (with Content-Type like `application/octet-stream`, `image/*`, etc.) skip Base64 detection for better performance.*
+
+---
 
 ## 🧩 ClamAV Version Endpoint
 
@@ -332,8 +433,6 @@ Example:
   "database": "27806",
   "databaseDate": "Wed Oct 28 10:00:00 2025"
 }
-```
-
 ---
 
 ## 💾 Persistent Virus Database
@@ -361,6 +460,8 @@ Environment variables can be overridden in `docker-compose.yml`:
 | `AzureAd__TenantId` | - | Azure AD Tenant ID |
 | `AzureAd__ClientId` | - | Azure AD Application (client) ID |
 | `AzureAd__Audience` | - | API audience (usually `api://{ClientId}`) |
+| `Base64Detection__Enabled` | `true` | Enable automatic Base64 file content detection |
+| `Base64Detection__PeekSizeBytes` | `4096` | Bytes to examine for Base64 detection |
 
 ---
 

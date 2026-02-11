@@ -51,6 +51,7 @@ builder.Services.AddOpenApiDocument(configure => { configure.Title = "ClamAv Api
 // Register services
 builder.Services.AddSingleton<IClamAvInfoService, ClamAvInfoService>();
 builder.Services.AddSingleton<IScanJobService, ScanJobService>();
+builder.Services.AddSingleton<IJsonBase64ExtractorService, JsonBase64ExtractorService>();
 
 // Register processing service
 builder.Services.AddScoped<IScanProcessingService, ScanProcessingService>();
@@ -58,6 +59,7 @@ builder.Services.AddScoped<IScanProcessingService, ScanProcessingService>();
 // Register handlers
 builder.Services.AddScoped<FileScanHandler>();
 builder.Services.AddScoped<UrlScanHandler>();
+builder.Services.AddScoped<JsonScanHandler>();
 
 // Add background task queue with 4 concurrent workers
 builder.Services.AddSingleton<IBackgroundTaskQueue>(sp =>
