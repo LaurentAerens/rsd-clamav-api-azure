@@ -7,12 +7,12 @@ ARG CI
 ENV CI=${CI}
 
 # Copy only csproj and restore first
-COPY src/GovUK.Dfe.ClamAV/GovUK.Dfe.ClamAV.csproj GovUK.Dfe.ClamAV/
-RUN dotnet restore GovUK.Dfe.ClamAV/GovUK.Dfe.ClamAV.csproj
+COPY src/Arcus.ClamAV/Arcus.ClamAV.csproj Arcus.ClamAV/
+RUN dotnet restore Arcus.ClamAV/Arcus.ClamAV.csproj
 
 # Copy everything else and publish
-COPY src/GovUK.Dfe.ClamAV/ GovUK.Dfe.ClamAV/
-RUN dotnet publish GovUK.Dfe.ClamAV/GovUK.Dfe.ClamAV.csproj -c Release -p:CI=true -o /app/publish /p:UseAppHost=false
+COPY src/Arcus.ClamAV/ Arcus.ClamAV/
+RUN dotnet publish Arcus.ClamAV/Arcus.ClamAV.csproj -c Release -p:CI=true -o /app/publish /p:UseAppHost=false
 
 # =========================
 # Final stage: ASP.NET runtime + ClamAV

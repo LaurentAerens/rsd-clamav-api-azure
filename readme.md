@@ -1,4 +1,4 @@
-﻿# 🛡️ GovUK DfE ClamAV API Container
+# 🛡️ Arcus ClamAV API Container
 
 A self-contained Dockerised antivirus scanning service built on **ClamAV** with a lightweight **.NET 8 HTTP API** and **Swagger UI**.
 
@@ -183,7 +183,7 @@ flowchart TB
 │   ├── clamd.conf                      # ClamAV daemon configuration
 │   └── freshclam.conf                  # Freshclam configuration
 └── src/
-    └── GovUK.Dfe.ClamAV/               # .NET 8 API project
+    └── Arcus.ClamAV/               # .NET 8 API project
         ├── Program.cs                  # Application entry point & DI configuration
         ├── Endpoints/                  # Endpoint route definitions
         │   ├── HealthEndpoints.cs      # Health check & version endpoints
@@ -400,3 +400,4 @@ docker compose down -v
 
 This project is provided under the MIT Licence.  
 ClamAV is licensed separately under the [GNU General Public License (GPL)](https://www.clamav.net/about).
+

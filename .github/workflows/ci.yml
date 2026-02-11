@@ -1,0 +1,19 @@
+name: CI - Build and Test
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - "src/**"
+  pull_request:
+    branches: [ main ]
+    paths:
+      - "src/**"
+
+jobs:
+  build-and-test:
+    uses: ./.github/workflows/build-test-template.yml
+    with:
+      project_name: ClamAV.Api
+      project_path: src/Arcus.ClamAV
+      run_tests: true

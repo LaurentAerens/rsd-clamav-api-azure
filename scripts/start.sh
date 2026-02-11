@@ -53,4 +53,5 @@ export MAX_FILE_SIZE_MB
 
 cd /app
 echo "[start.sh] Starting .NET API on ${ASPNETCORE_URLS}..."
-exec dotnet GovUK.Dfe.ClamAV.dll
+exec dotnet Arcus.ClamAV.dll
+
