@@ -55,13 +55,11 @@ jobs:
     - name: Run Tests
       if: ${{ inputs.run_tests }}
       run: |
-        dotnet test src/Arcus.ClamAV.Tests/Arcus.ClamAV.Tests.csproj \
+        dotnet test src/Arcus.ClamAV.Tests/bin/Release/net10.0/Arcus.ClamAV.Tests.dll \
           --filter "Category!=BlackBox" \
-          --no-build \
           --verbosity normal \
           --logger "trx;LogFileName=test-results.trx" \
-          --collect:"XPlat Code Coverage" \
-          --configuration Release
+          --collect:"XPlat Code Coverage"
 
     - name: Upload Coverage Reports
       if: ${{ inputs.run_tests }}
