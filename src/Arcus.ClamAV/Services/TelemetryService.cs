@@ -21,7 +21,10 @@ public class TelemetryService : ITelemetryService
     /// <inheritdoc />
     public void TrackScanCompleted(long scanDurationMs, bool isClean, long fileSizeBytes, string scanType)
     {
-        if (_telemetryClient == null) return;
+        if (_telemetryClient == null)
+        {
+            return;
+        }
 
         try
         {
@@ -68,7 +71,10 @@ public class TelemetryService : ITelemetryService
     /// <inheritdoc />
     public void TrackMalwareDetected(string threatName, string fileName, string scanType)
     {
-        if (_telemetryClient == null) return;
+        if (_telemetryClient == null)
+        {
+            return;
+        }
 
         try
         {
@@ -108,7 +114,10 @@ public class TelemetryService : ITelemetryService
     /// <inheritdoc />
     public void TrackQueueDepth(int queueLength)
     {
-        if (_telemetryClient == null) return;
+        if (_telemetryClient == null)
+        {
+            return;
+        }
 
         try
         {
@@ -129,7 +138,10 @@ public class TelemetryService : ITelemetryService
     /// <inheritdoc />
     public void TrackWorkerUtilization(int activeWorkers, int capacity)
     {
-        if (_telemetryClient == null) return;
+        if (_telemetryClient == null)
+        {
+            return;
+        }
 
         try
         {
@@ -159,7 +171,10 @@ public class TelemetryService : ITelemetryService
     /// <inheritdoc />
     public void TrackScanFailed(string errorMessage, string scanType, Exception? exception = null)
     {
-        if (_telemetryClient == null) return;
+        if (_telemetryClient == null)
+        {
+            return;
+        }
 
         try
         {
@@ -251,13 +266,34 @@ public class TelemetryService : ITelemetryService
     {
         var lowerThreat = threatName.ToLowerInvariant();
 
-        if (lowerThreat.Contains("eicar")) return "Test";
-        if (lowerThreat.Contains("trojan")) return "Trojan";
-        if (lowerThreat.Contains("virus")) return "Virus";
-        if (lowerThreat.Contains("worm")) return "Worm";
-        if (lowerThreat.Contains("ransomware")) return "Ransomware";
-        if (lowerThreat.Contains("adware") || lowerThreat.Contains("spyware")) return "Spyware";
-        if (lowerThreat.Contains("rootkit")) return "Rootkit";
+        if (lowerThreat.Contains("eicar"))
+        {
+            return "Test";
+        }
+        if (lowerThreat.Contains("trojan"))
+        {
+            return "Trojan";
+        }
+        if (lowerThreat.Contains("virus"))
+        {
+            return "Virus";
+        }
+        if (lowerThreat.Contains("worm"))
+        {
+            return "Worm";
+        }
+        if (lowerThreat.Contains("ransomware"))
+        {
+            return "Ransomware";
+        }
+        if (lowerThreat.Contains("adware") || lowerThreat.Contains("spyware"))
+        {
+            return "Spyware";
+        }
+        if (lowerThreat.Contains("rootkit"))
+        {
+            return "Rootkit";
+        }
 
         return "Other";
     }
@@ -269,12 +305,30 @@ public class TelemetryService : ITelemetryService
     {
         var lowerError = errorMessage.ToLowerInvariant();
 
-        if (lowerError.Contains("timeout")) return "Timeout";
-        if (lowerError.Contains("connection") || lowerError.Contains("network")) return "Network";
-        if (lowerError.Contains("file") || lowerError.Contains("path")) return "FileSystem";
-        if (lowerError.Contains("memory") || lowerError.Contains("oom")) return "Memory";
-        if (lowerError.Contains("permission") || lowerError.Contains("access denied")) return "Permission";
-        if (lowerError.Contains("parse") || lowerError.Contains("format")) return "Format";
+        if (lowerError.Contains("timeout"))
+        {
+            return "Timeout";
+        }
+        if (lowerError.Contains("connection") || lowerError.Contains("network"))
+        {
+            return "Network";
+        }
+        if (lowerError.Contains("file") || lowerError.Contains("path"))
+        {
+            return "FileSystem";
+        }
+        if (lowerError.Contains("memory") || lowerError.Contains("oom"))
+        {
+            return "Memory";
+        }
+        if (lowerError.Contains("permission") || lowerError.Contains("access denied"))
+        {
+            return "Permission";
+        }
+        if (lowerError.Contains("parse") || lowerError.Contains("format"))
+        {
+            return "Format";
+        }
 
         return "Other";
     }
