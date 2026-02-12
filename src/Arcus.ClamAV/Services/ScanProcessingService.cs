@@ -40,7 +40,11 @@ public class ScanProcessingService(
                 }
 
                 logger.LogInformation("Job {JobId} scan complete: {Status}", jobId,
-                    scanResult.IsClean ? "Clean" : $"Infected with {scanResult.MalwareName}");
+                    scanResult.IsClean ? "Clean" : "Infected");
+                if (!scanResult.IsClean && scanResult.MalwareName != null)
+                {
+                    logger.LogInformation("Job {JobId} malware detected: {MalwareName}", jobId, scanResult.MalwareName);
+                }
             }
             else
             {
@@ -75,7 +79,7 @@ public class ScanProcessingService(
         {
             // Download phase
             jobService.UpdateJobStatus(jobId, "downloading");
-            logger.LogInformation("Started downloading file from {Url} for job {JobId}", url, jobId);
+            logger.LogInformation("Started downloading file for job {JobId}", jobId);
 
             var downloadSuccess = await DownloadFileAsync(jobId, url, tempFilePath, maxFileSize, cancellationToken);
             if (!downloadSuccess)
@@ -116,7 +120,7 @@ public class ScanProcessingService(
             // If Content-Length is present, check it before downloading
             if (contentLength.HasValue)
             {
-                logger.LogInformation("File at {Url} has Content-Length: {Size} bytes", url, contentLength.Value);
+                logger.LogInformation("File has Content-Length: {Size} bytes", contentLength.Value);
 
                 if (contentLength.Value > maxFileSize)
                 {
@@ -136,7 +140,7 @@ public class ScanProcessingService(
             }
             else
             {
-                logger.LogWarning("No Content-Length header for {Url}, will monitor size during download", url);
+                logger.LogWarning("No Content-Length header, will monitor size during download");
             }
 
             // Download the file with size monitoring
@@ -183,7 +187,7 @@ public class ScanProcessingService(
                 await fileStream.WriteAsync(buffer, 0, bytesRead, cancellationToken);
             }
 
-            logger.LogInformation("Downloaded {Bytes} bytes from {Url} to {Path}", totalBytesRead, url, tempFilePath);
+            logger.LogInformation("Downloaded {Bytes} bytes", totalBytesRead);
 
             // Update job with actual file size if we didn't have Content-Length
             if (!contentLength.HasValue)
@@ -199,7 +203,7 @@ public class ScanProcessingService(
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "Error downloading file from {Url} for job {JobId}", url, jobId);
+            logger.LogError(ex, "Error downloading file for job {JobId}", jobId);
             jobService.UpdateJobStatus(jobId, "error", error: $"Failed to download file: {ex.Message}");
             jobService.CompleteJob(jobId);
 
