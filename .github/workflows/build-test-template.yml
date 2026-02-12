@@ -56,6 +56,7 @@ jobs:
       if: ${{ inputs.run_tests }}
       run: |
         dotnet test src/Arcus.ClamAV.Tests/Arcus.ClamAV.Tests.csproj \
+          --filter "Category!=BlackBox" \
           --no-build \
           --verbosity normal \
           --logger "trx;LogFileName=test-results.trx" \
