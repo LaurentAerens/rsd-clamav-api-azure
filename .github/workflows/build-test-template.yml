@@ -49,8 +49,8 @@ jobs:
     - name: Build
       env:
         CI: true
-      run: |
-        dotnet build --no-restore -p:CI=${CI} ${{ inputs.project_path }}
+        PROJECT_PATH: ${{ inputs.project_path }}
+      run: dotnet build --no-restore --configuration Release -p:CI="$CI" "$PROJECT_PATH"
 
     - name: Run Tests
       if: ${{ inputs.run_tests }}

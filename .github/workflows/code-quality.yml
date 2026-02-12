@@ -39,6 +39,7 @@ jobs:
         with:
           languages: ${{ matrix.language }}
           queries: security-and-quality
+          config-file: .github/codeql-config.yml
 
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
@@ -73,7 +74,6 @@ jobs:
             p/csharp
             p/owasp-top-ten
             p/security-audit
-          generateSarif: true
 
   stylecopanalyzer:
     name: StyleCop Analyzer
