@@ -43,7 +43,7 @@ public class ScanProcessingService(
                     scanResult.IsClean ? "Clean" : "Infected");
                 if (!scanResult.IsClean && scanResult.MalwareName != null)
                 {
-                    var displayMalwareName = scanResult.MalwareName is null ? "unknown" : scanResult.MalwareName;
+                    var displayMalwareName = scanResult.MalwareName;
                     logger.LogInformation("Job {JobId} malware detected: {MalwareName}", jobId, displayMalwareName);
                 }
             }
