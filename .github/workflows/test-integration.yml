@@ -22,19 +22,6 @@ jobs:
       contents: read
       packages: read
     
-    services:
-      # Run ClamAV daemon for the API to connect to
-      clamav:
-        image: clamav/clamav:latest
-        ports:
-          - 3310:3310
-        options: >-
-          --health-cmd="clamscan --version"
-          --health-interval=30s
-          --health-timeout=10s
-          --health-retries=3
-          --health-start-period=40s
-
     steps:
       - uses: actions/checkout@v4
 
@@ -43,43 +30,37 @@ jobs:
         with:
           dotnet-version: ${{ env.DOTNET_VERSION }}
 
-      - name: Build Docker Image
+      - name: Build Test Project
         run: |
-          docker build -t ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }} .
+          dotnet build src/Arcus.ClamAV.Tests/Arcus.ClamAV.Tests.csproj \
+            --configuration Release \
+            --no-restore
 
-      - name: Start Application Container
+      - name: Start Services with Docker Compose
         run: |
-          docker run -d \
-            --name clamav-api \
-            -p 5000:8080 \
-            -e CLAMAV_HOST=clamav \
-            -e CLAMAV_PORT=3310 \
-            --network host \
-            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
+          docker-compose up -d --build
           
           # Wait for application to be healthy
-          for i in {1..30}; do
-            if curl -s http://localhost:5000/health > /dev/null; then
+          for i in {1..60}; do
+            if curl -s http://localhost:8080/healthz > /dev/null; then
               echo "Application is healthy"
               exit 0
             fi
-            echo "Waiting for application to start... ($i/30)"
+            echo "Waiting for application to start... ($i/60)"
             sleep 2
           done
           echo "Application failed to start"
-          docker logs clamav-api
+          docker-compose logs
           exit 1
 
       - name: Run Integration Tests Against Running Container
-        env:
-          CONTAINER_BASE_URL: http://localhost:5000
         run: |
           dotnet test src/Arcus.ClamAV.Tests/Arcus.ClamAV.Tests.csproj \
             --filter "Category=BlackBox" \
-            --verbosity normal \
-            --logger "trx;LogFileName=blackbox-test-results.trx" \
+            --no-build \
             --configuration Release \
-            -- --no-build
+            --verbosity normal \
+            --logger "trx;LogFileName=blackbox-test-results.trx"
 
       - name: Publish Integration Test Results
         if: always()
@@ -91,13 +72,12 @@ jobs:
       - name: Container Logs on Failure
         if: failure()
         run: |
-          echo "=== ClamAV API Logs ==="
-          docker logs clamav-api || true
-          echo "=== ClamAV Daemon Logs ==="
-          docker logs clamav || true
+          echo "=== Docker Compose Services ==="
+          docker-compose ps
+          echo "=== Docker Compose Logs ==="
+          docker-compose logs
 
       - name: Cleanup
         if: always()
         run: |
-          docker stop clamav-api || true
-          docker rm clamav-api || true
+          docker-compose down -v

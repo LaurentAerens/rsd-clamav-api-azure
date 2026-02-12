@@ -87,11 +87,11 @@ public class ContainerBlackBoxTests
     public async Task FileScanEndpoint_ShouldAcceptMultipartFileUpload()
     {
         // Arrange
-        var content = new MultipartFormDataContent();
+        using var content = new MultipartFormDataContent();
         
         // Create a clean test file (non-infected)
         var testFileBytes = new byte[] { 0x00, 0x01, 0x02, 0x03 };
-        var fileContent = new ByteArrayContent(testFileBytes);
+        using var fileContent = new ByteArrayContent(testFileBytes);
         fileContent.Headers.ContentType = System.Net.Http.Headers.MediaTypeHeaderValue.Parse("application/octet-stream");
         content.Add(fileContent, "file", "test.bin");
 
@@ -159,9 +159,9 @@ public class ContainerBlackBoxTests
     public async Task AsyncScanEndpoint_ShouldReturnJobId()
     {
         // Arrange
-        var content = new MultipartFormDataContent();
+        using var content = new MultipartFormDataContent();
         var testFileBytes = new byte[] { 0x00, 0x01, 0x02, 0x03 };
-        var fileContent = new ByteArrayContent(testFileBytes);
+        using var fileContent = new ByteArrayContent(testFileBytes);
         fileContent.Headers.ContentType = System.Net.Http.Headers.MediaTypeHeaderValue.Parse("application/octet-stream");
         content.Add(fileContent, "file", "test.bin");
 

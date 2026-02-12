@@ -55,6 +55,10 @@ public class TelemetryService : ITelemetryService
                     { "ScanType", scanType }
                 });
         }
+        catch (OperationCanceledException ex)
+        {
+            _logger.LogDebug(ex, "Track scan completion telemetry operation cancelled");
+        }
         catch (Exception ex)
         {
             _logger.LogWarning(ex, "Failed to track scan completion telemetry");
@@ -89,7 +93,11 @@ public class TelemetryService : ITelemetryService
                     { "ThreatCategory", GetThreatCategory(threatName) }
                 });
 
-            _logger.LogWarning("Malware detected and tracked: {ThreatName} in {FileName}", threatName, fileName);
+            _logger.LogWarning("Malware detected and tracked: {ThreatName} in {FileName}", threatName, SanitizeForLogging(fileName));
+        }
+        catch (OperationCanceledException ex)
+        {
+            _logger.LogDebug(ex, "Track malware detection telemetry operation cancelled");
         }
         catch (Exception ex)
         {
@@ -107,6 +115,10 @@ public class TelemetryService : ITelemetryService
             _telemetryClient.TrackMetric(
                 "BackgroundQueueDepth",
                 queueLength);
+        }
+        catch (OperationCanceledException ex)
+        {
+            _logger.LogDebug(ex, "Track queue depth telemetry operation cancelled");
         }
         catch (Exception ex)
         {
@@ -133,6 +145,10 @@ public class TelemetryService : ITelemetryService
                 {
                     { "Capacity", capacity.ToString() }
                 });
+        }
+        catch (OperationCanceledException ex)
+        {
+            _logger.LogDebug(ex, "Track worker utilization telemetry operation cancelled");
         }
         catch (Exception ex)
         {
@@ -177,6 +193,10 @@ public class TelemetryService : ITelemetryService
                 _telemetryClient.TrackException(exception, properties);
             }
         }
+        catch (OperationCanceledException ex)
+        {
+            _logger.LogDebug(ex, "Track scan failure telemetry operation cancelled");
+        }
         catch (Exception ex)
         {
             _logger.LogWarning(ex, "Failed to track scan failure telemetry");
@@ -198,6 +218,18 @@ public class TelemetryService : ITelemetryService
             < 100 => "VeryLarge (50-100MB)",
             _ => "Huge (>100MB)"
         };
+    }
+
+    /// <summary>
+    /// Sanitizes user-provided strings for logging to prevent log injection attacks.
+    /// Removes newlines and control characters that could be used to forge log entries.
+    /// </summary>
+    private static string SanitizeForLogging(string input)
+    {
+        if (string.IsNullOrEmpty(input)) return input;
+        
+        // Remove newlines and control characters to prevent log injection
+        return System.Text.RegularExpressions.Regex.Replace(input, @"[\r\n\t\x00-\x08\x0B-\x0C\x0E-\x1F\x7F]", " ");
     }
 
     /// <summary>

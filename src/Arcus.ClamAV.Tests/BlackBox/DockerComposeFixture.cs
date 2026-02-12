@@ -11,7 +11,7 @@ public class DockerComposeFixture : IDisposable
     private readonly string _workspaceRoot;
     private readonly string _baseUrl;
     private readonly HttpClient _httpClient;
-    private bool _containersStarted;
+    private readonly bool _containersStarted; 
 
     public string BaseUrl => _baseUrl;
 
@@ -23,8 +23,16 @@ public class DockerComposeFixture : IDisposable
         _httpClient = new HttpClient { Timeout = TimeSpan.FromSeconds(5) };
 
         Console.WriteLine("🐳 Starting Docker Compose for BlackBox tests...");
-        StartDockerCompose();
-        _containersStarted = true;
+        bool started = false;
+        try
+        {
+            StartDockerCompose();
+            started = true;
+        }
+        finally
+        {
+            _containersStarted = started;
+        }
     }
 
     private void StartDockerCompose()
@@ -61,7 +69,10 @@ public class DockerComposeFixture : IDisposable
                 Console.WriteLine("Container logs:");
                 Console.WriteLine(logs);
             }
-            catch { /* Ignore log retrieval errors */ }
+            catch (Exception logEx)
+            {
+                Console.WriteLine($"Could not retrieve logs: {logEx.Message}");
+            }
 
             throw new InvalidOperationException(
                 "Failed to start Docker Compose. Ensure docker-compose.yml exists and Docker is running.", ex);
@@ -84,9 +95,13 @@ public class DockerComposeFixture : IDisposable
                     return;
                 }
             }
-            catch
+            catch (HttpRequestException)
             {
                 // Container not ready yet
+            }
+            catch (OperationCanceledException)
+            {
+                // Request timeout, container not ready
             }
 
             if (attempt % 10 == 0)
@@ -106,7 +121,7 @@ public class DockerComposeFixture : IDisposable
     {
         try
         {
-            var process = new Process
+            using var process = new Process
             {
                 StartInfo = new ProcessStartInfo
                 {
@@ -122,15 +137,19 @@ public class DockerComposeFixture : IDisposable
             process.WaitForExit();
             return process.ExitCode == 0;
         }
-        catch
+        catch (FileNotFoundException)
         {
-            return false;
+            return false;  // docker command not found
+        }
+        catch (Exception)
+        {
+            return false;  // Other process errors
         }
     }
 
     private string RunDockerComposeCommand(string arguments, bool captureOutput = false)
     {
-        var process = new Process
+        using var process = new Process
         {
             StartInfo = new ProcessStartInfo
             {
@@ -175,7 +194,7 @@ public class DockerComposeFixture : IDisposable
 
         while (currentDir != null)
         {
-            if (File.Exists(Path.Combine(currentDir.FullName, "docker-compose.yml")))
+            if (File.Exists(Path.Join(currentDir.FullName, "docker-compose.yml")))
             {
                 return currentDir.FullName;
             }
