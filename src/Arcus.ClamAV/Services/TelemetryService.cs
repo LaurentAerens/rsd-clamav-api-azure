@@ -222,14 +222,26 @@ public class TelemetryService : ITelemetryService
 
     /// <summary>
     /// Sanitizes user-provided strings for logging to prevent log injection attacks.
-    /// Removes newlines and control characters that could be used to forge log entries.
+    /// Removes newlines and control characters that could be used to forge log entries,
+    /// and normalizes whitespace to keep log messages readable.
     /// </summary>
     private static string SanitizeForLogging(string input)
     {
-        if (string.IsNullOrEmpty(input)) return input;
-        
-        // Remove newlines and control characters to prevent log injection
-        return System.Text.RegularExpressions.Regex.Replace(input, @"[\r\n\t\x00-\x08\x0B-\x0C\x0E-\x1F\x7F]", " ");
+        if (string.IsNullOrEmpty(input))
+        {
+            return input;
+        }
+
+        // Remove newlines and control characters to prevent log injection / forging
+        var sanitized = System.Text.RegularExpressions.Regex.Replace(
+            input,
+            @"[\r\n\t\x00-\x08\x0B-\x0C\x0E-\x1F\x7F]",
+            " ");
+
+        // Collapse multiple spaces and trim ends to avoid messy log output
+        sanitized = System.Text.RegularExpressions.Regex.Replace(sanitized, @"\s{2,}", " ").Trim();
+
+        return sanitized;
     }
 
     /// <summary>

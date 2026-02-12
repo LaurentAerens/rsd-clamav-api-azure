@@ -511,6 +511,9 @@ namespace Arcus.ClamAV.Api.Client
             }
         }
 
+        /// <summary>
+        /// Sends a JSON-based scan request to the ClamAV API and returns the scan result.
+        /// </summary>
         /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
         /// <exception cref="ClamAvApiException">A server side error occurred.</exception>
         public virtual async System.Threading.Tasks.Task<JsonScanResult> ScanJsonAsync(JsonScanRequest jsonRequest, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken))
