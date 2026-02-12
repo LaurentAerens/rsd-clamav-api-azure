@@ -102,17 +102,17 @@ jobs:
             else if (sizeCategory === 'l') sizeEmoji = '🟠';
             else if (sizeCategory === 'xl') sizeEmoji = '🔴';
             
-            const comment = `${sizeEmoji} **PR Size Analysis**
-            
-| Metric | Value |
-|--------|-------|
-| Files Changed | ${changedFiles} |
-| Lines Added | ${addedLines} |
-| Lines Deleted | ${deletedLines} |
-| Total Changes | ${parseInt(addedLines) + parseInt(deletedLines)} |
-| Category | ${sizeCategory.toUpperCase()} |
-
-${'xl' === sizeCategory ? '⚠️ **Large PR Detected** - Consider breaking into smaller PRs for easier review.' : '✅ Good PR size for review'}`;
+            let comment = `${sizeEmoji} **PR Size Analysis**\n\n`;
+            comment += '| Metric | Value |\n';
+            comment += '|--------|-------|\n';
+            comment += `| Files Changed | ${changedFiles} |\n`;
+            comment += `| Lines Added | ${addedLines} |\n`;
+            comment += `| Lines Deleted | ${deletedLines} |\n`;
+            comment += `| Total Changes | ${parseInt(addedLines) + parseInt(deletedLines)} |\n`;
+            comment += `| Category | ${sizeCategory.toUpperCase()} |\n\n`;
+            comment += sizeCategory === 'xl' 
+              ? '⚠️ **Large PR Detected** - Consider breaking into smaller PRs for easier review.' 
+              : '✅ Good PR size for review';
             
             github.rest.issues.createComment({
               issue_number: context.issue.number,

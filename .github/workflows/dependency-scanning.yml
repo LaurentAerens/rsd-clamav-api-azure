@@ -40,7 +40,9 @@ jobs:
         id: audit
         run: |
           dotnet nuget audit --format json --output audit-results.json src/Arcus.ClamAV.sln || EXIT_CODE=$?
-          if [ "$EXIT_CODE" = "1" ]; then
+          if [ ! -f audit-results.json ]; then
+            echo "VULNERABILITIES_FOUND=false" >> $GITHUB_OUTPUT
+          elif [ "$EXIT_CODE" = "1" ]; then
             echo "VULNERABILITIES_FOUND=true" >> $GITHUB_OUTPUT
             echo "## Vulnerabilities Found" >> $GITHUB_STEP_SUMMARY
             cat audit-results.json | jq '.[] | "- \(.advisories[].title): \(.advisories[].severity)"' >> $GITHUB_STEP_SUMMARY
@@ -49,7 +51,7 @@ jobs:
           fi
 
       - name: Upload NuGet Audit Results
-        if: always()
+        if: always() && hashFiles('audit-results.json') != ''
         uses: actions/upload-artifact@v4
         with:
           name: nuget-audit-results
@@ -63,6 +65,11 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
             const fs = require('fs');
+            if (!fs.existsSync('audit-results.json')) {
+              console.log('No audit results file found. No vulnerabilities detected.');
+              return;
+            }
+            
             const auditResults = JSON.parse(fs.readFileSync('audit-results.json', 'utf8'));
             
             let comment = '⚠️ **NuGet Vulnerability Audit Results**\n\n';

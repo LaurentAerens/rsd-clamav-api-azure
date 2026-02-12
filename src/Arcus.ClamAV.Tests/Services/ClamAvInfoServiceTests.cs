@@ -21,7 +21,7 @@ public class ClamAvInfoServiceTests
         var service = new ClamAvInfoService(configMock.Object);
 
         // Assert
-        service.Should().NotBeNull();
+        service.ShouldNotBeNull();
     }
 }
 

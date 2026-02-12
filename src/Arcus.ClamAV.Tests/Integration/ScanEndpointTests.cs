@@ -35,7 +35,7 @@ public class ScanEndpointTests : IAsyncLifetime
         var response = await _client.PostAsync("/scan", formData);
 
         // Assert
-        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        response.StatusCode.ShouldBe(HttpStatusCode.OK);
     }
 
     [Fact(Skip = "Requires running ClamAV instance for synchronous scanning")]
@@ -50,7 +50,7 @@ public class ScanEndpointTests : IAsyncLifetime
         var response = await _client.PostAsync("/scan", formData);
 
         // Assert
-        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        response.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
     }
 
     [Fact]
@@ -63,7 +63,7 @@ public class ScanEndpointTests : IAsyncLifetime
         var response = await _client.PostAsync("/scan", formData);
 
         // Assert
-        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        response.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
     }
 
     [Fact]
@@ -83,7 +83,7 @@ public class ScanEndpointTests : IAsyncLifetime
         var response = await _client.PostAsync("/scan/async", formData);
 
         // Assert
-        response.StatusCode.Should().Be(HttpStatusCode.Accepted);
+        response.StatusCode.ShouldBe(HttpStatusCode.Accepted);
     }
 
     [Fact]
@@ -103,11 +103,11 @@ public class ScanEndpointTests : IAsyncLifetime
         var content = await response.Content.ReadFromJsonAsync<AsyncScanResponse>();
 
         // Assert
-        response.StatusCode.Should().Be(HttpStatusCode.Accepted);
-        content.Should().NotBeNull();
-        content!.JobId.Should().NotBeNullOrEmpty();
-        content.Status.Should().Be("queued");
-        content.StatusUrl.Should().Contain(content.JobId);
+        response.StatusCode.ShouldBe(HttpStatusCode.Accepted);
+        content.ShouldNotBeNull();
+        content!.JobId.ShouldNotBeNullOrEmpty();
+        content.Status.ShouldBe("queued");
+        content.StatusUrl.ShouldContain(content.JobId);
     }
 
     [Fact]
@@ -125,7 +125,7 @@ public class ScanEndpointTests : IAsyncLifetime
         var response = await _client.PostAsJsonAsync("/scan/async/url", scanRequest);
 
         // Assert
-        response.StatusCode.Should().Be(HttpStatusCode.Accepted);
+        response.StatusCode.ShouldBe(HttpStatusCode.Accepted);
     }
 
     [Fact]
@@ -138,7 +138,7 @@ public class ScanEndpointTests : IAsyncLifetime
         var response = await _client.PostAsJsonAsync("/scan/async/url", scanRequest);
 
         // Assert
-        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        response.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
     }
 
     [Fact]
@@ -151,7 +151,7 @@ public class ScanEndpointTests : IAsyncLifetime
         var response = await _client.PostAsJsonAsync("/scan/async/url", scanRequest);
 
         // Assert
-        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        response.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
     }
 
     [Fact]
@@ -174,7 +174,7 @@ public class ScanEndpointTests : IAsyncLifetime
         var response = await _client.GetAsync($"/scan/async/{scanJobContent!.JobId}");
 
         // Assert
-        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        response.StatusCode.ShouldBe(HttpStatusCode.OK);
     }
 
     [Fact]
@@ -184,7 +184,7 @@ public class ScanEndpointTests : IAsyncLifetime
         var response = await _client.GetAsync("/scan/async/invalid-job-id");
 
         // Assert
-        response.StatusCode.Should().Be(HttpStatusCode.NotFound);
+        response.StatusCode.ShouldBe(HttpStatusCode.NotFound);
     }
 
     [Fact]
@@ -194,7 +194,7 @@ public class ScanEndpointTests : IAsyncLifetime
         var response = await _client.GetAsync("/scan/jobs");
 
         // Assert
-        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        response.StatusCode.ShouldBe(HttpStatusCode.OK);
     }
 
     [Fact]
@@ -205,10 +205,10 @@ public class ScanEndpointTests : IAsyncLifetime
         var content = await response.Content.ReadFromJsonAsync<JobsListResponse>();
 
         // Assert
-        response.StatusCode.Should().Be(HttpStatusCode.OK);
-        content.Should().NotBeNull();
-        content!.Jobs.Should().NotBeNull();
-        content.Count.Should().BeGreaterThanOrEqualTo(0);
+        response.StatusCode.ShouldBe(HttpStatusCode.OK);
+        content.ShouldNotBeNull();
+        content!.Jobs.ShouldNotBeNull();
+        content.Count.ShouldBeGreaterThanOrEqualTo(0);
     }
 
     [Fact(Skip = "Requires running ClamAV instance for JSON scanning")]
@@ -230,13 +230,13 @@ public class ScanEndpointTests : IAsyncLifetime
         var response = await _client.PostAsJsonAsync("/scan/json", new { payload = jsonPayload });
 
         // Assert
-        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        response.StatusCode.ShouldBe(HttpStatusCode.OK);
         
         var result = await response.Content.ReadFromJsonAsync<JsonScanResult>();
-        result.Should().NotBeNull();
-        result!.Status.Should().Be("clean");
-        result.Base64ItemsFound.Should().Be(1);
-        result.ItemsScanned.Should().BeGreaterThan(0);
+        result.ShouldNotBeNull();
+        result!.Status.ShouldBe("clean");
+        result.Base64ItemsFound.ShouldBe(1);
+        result.ItemsScanned.ShouldBeGreaterThan(0);
     }
 
     [Fact(Skip = "Requires running ClamAV instance for JSON scanning")]
@@ -259,12 +259,12 @@ public class ScanEndpointTests : IAsyncLifetime
         var response = await _client.PostAsJsonAsync("/scan/json", new { payload = jsonPayload });
 
         // Assert
-        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        response.StatusCode.ShouldBe(HttpStatusCode.OK);
         
         var result = await response.Content.ReadFromJsonAsync<JsonScanResult>();
-        result.Should().NotBeNull();
-        result!.Base64ItemsFound.Should().Be(2);
-        result.Details.Should().HaveCountGreaterThan(0);
+        result.ShouldNotBeNull();
+        result!.Base64ItemsFound.ShouldBe(2);
+        result.Details.Count.ShouldBeGreaterThan(0);
     }
 
     [Fact(Skip = "Requires running ClamAV instance for JSON scanning")]
@@ -294,12 +294,12 @@ public class ScanEndpointTests : IAsyncLifetime
         var response = await _client.PostAsJsonAsync("/scan/json", new { payload = jsonPayload });
 
         // Assert
-        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        response.StatusCode.ShouldBe(HttpStatusCode.OK);
         
         var result = await response.Content.ReadFromJsonAsync<JsonScanResult>();
-        result.Should().NotBeNull();
-        result!.Base64ItemsFound.Should().BeGreaterThan(0);
-        result.Details.Should().Contain(d => d.Type == "base64_decoded");
+        result.ShouldNotBeNull();
+        result!.Base64ItemsFound.ShouldBeGreaterThan(0);
+        result.Details.Count.ShouldBeGreaterThan(0);
     }
 
     [Fact(Skip = "Requires running ClamAV instance for JSON scanning")]
@@ -317,13 +317,13 @@ public class ScanEndpointTests : IAsyncLifetime
         var response = await _client.PostAsJsonAsync("/scan/json", new { payload = jsonPayload });
 
         // Assert
-        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        response.StatusCode.ShouldBe(HttpStatusCode.OK);
         
         var result = await response.Content.ReadFromJsonAsync<JsonScanResult>();
-        result.Should().NotBeNull();
-        result!.Base64ItemsFound.Should().Be(0);
-        result.ItemsScanned.Should().Be(1); // Just the JSON text itself
-        result.Details.Should().Contain(d => d.Name == "json_payload" && d.Type == "json_text");
+        result.ShouldNotBeNull();
+        result!.Base64ItemsFound.ShouldBe(0);
+        result.ItemsScanned.ShouldBe(1); // Just the JSON text itself
+        result.Details.Any(d => d.Name == "json_payload" && d.Type == "json_text").ShouldBeTrue();
     }
 }
 

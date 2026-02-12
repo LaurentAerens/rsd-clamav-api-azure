@@ -22,8 +22,8 @@ public class ScanJobServiceTests
         var jobId = _jobService.CreateJob("test.exe", 1024);
 
         // Assert
-        jobId.Should().NotBeNullOrEmpty();
-        Guid.TryParse(jobId, out _).Should().BeTrue();
+        jobId.ShouldNotBeNullOrEmpty();
+        Guid.TryParse(jobId, out _).ShouldBeTrue();
     }
 
     [Fact]
@@ -38,12 +38,12 @@ public class ScanJobServiceTests
         var job = _jobService.GetJob(jobId);
 
         // Assert
-        job.Should().NotBeNull();
-        job!.JobId.Should().Be(jobId);
-        job.FileName.Should().Be(fileName);
-        job.FileSize.Should().Be(fileSize);
-        job.Status.Should().Be("queued");
-        job.CreatedAt.Should().BeCloseTo(DateTime.UtcNow, TimeSpan.FromSeconds(1));
+        job.ShouldNotBeNull();
+        job!.JobId.ShouldBe(jobId);
+        job.FileName.ShouldBe(fileName);
+        job.FileSize.ShouldBe(fileSize);
+        job.Status.ShouldBe("queued");
+        (DateTime.UtcNow - job.CreatedAt).ShouldBeLessThanOrEqualTo(TimeSpan.FromSeconds(1));
     }
 
     [Fact]
@@ -53,7 +53,7 @@ public class ScanJobServiceTests
         var job = _jobService.GetJob("nonexistent-id");
 
         // Assert
-        job.Should().BeNull();
+        job.ShouldBeNull();
     }
 
     [Fact]
@@ -67,7 +67,7 @@ public class ScanJobServiceTests
         var job = _jobService.GetJob(jobId);
 
         // Assert
-        job!.Status.Should().Be("scanning");
+        job!.Status.ShouldBe("scanning");
     }
 
     [Fact]
@@ -81,7 +81,7 @@ public class ScanJobServiceTests
         var job = _jobService.GetJob(jobId);
 
         // Assert
-        job!.Malware.Should().Be("Win.Trojan.Generic");
+        job!.Malware.ShouldBe("Win.Trojan.Generic");
     }
 
     [Fact]
@@ -95,7 +95,7 @@ public class ScanJobServiceTests
         var job = _jobService.GetJob(jobId);
 
         // Assert
-        job!.Error.Should().Be("Connection timeout");
+        job!.Error.ShouldBe("Connection timeout");
     }
 
     [Fact]
@@ -110,8 +110,8 @@ public class ScanJobServiceTests
         var job = _jobService.GetJob(jobId);
 
         // Assert
-        job!.CompletedAt.Should().NotBeNull();
-        job.CompletedAt!.Value.Should().BeOnOrAfter(beforeComplete);
+        job!.CompletedAt.ShouldNotBeNull();
+        job.CompletedAt!.Value.ShouldBeGreaterThanOrEqualTo(beforeComplete);
     }
 
     [Fact]
@@ -128,7 +128,7 @@ public class ScanJobServiceTests
 
         // Assert
         var allJobs = _jobService.GetAllJobs();
-        allJobs.Should().BeEmpty();
+        allJobs.ShouldBeEmpty();
     }
 
     [Fact]
@@ -143,10 +143,10 @@ public class ScanJobServiceTests
         var allJobs = _jobService.GetAllJobs().ToList();
 
         // Assert
-        allJobs.Should().HaveCount(3);
-        allJobs[0].JobId.Should().Be(jobId3); // Most recent first
-        allJobs[1].JobId.Should().Be(jobId2);
-        allJobs[2].JobId.Should().Be(jobId1); // Oldest last
+        allJobs.Count.ShouldBe(3);
+        allJobs[0].JobId.ShouldBe(jobId3); // Most recent first
+        allJobs[1].JobId.ShouldBe(jobId2);
+        allJobs[2].JobId.ShouldBe(jobId1); // Oldest last
     }
 
     [Fact]
@@ -157,7 +157,7 @@ public class ScanJobServiceTests
         var jobId2 = _jobService.CreateJob("test.exe", 1024);
 
         // Assert
-        jobId1.Should().NotBe(jobId2);
+        jobId1.ShouldNotBe(jobId2);
     }
 }
 

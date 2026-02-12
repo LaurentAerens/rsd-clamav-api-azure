@@ -12,15 +12,6 @@ mkdir -p /var/lib/clamav /var/log/clamav
 chown -R clamav:clamav /var/lib/clamav /var/log/clamav
 chmod 755 /var/lib/clamav /var/log/clamav
 
-# Create symlinks to forward ClamAV logs to stdout
-# This enables Container Apps to capture ClamAV logs in the container logs
-ln -sf /dev/stdout /var/log/clamav/clamd.log
-ln -sf /dev/stdout /var/log/clamav/freshclam.log
-
-# Prepare log directory for permissions
-touch /var/log/clamav/clamd.log
-chown clamav:clamav /var/log/clamav/clamd.log
-
 # Optional delay before initial DB update
 if [[ "${FRESHCLAM_DELAY_SECS}" -gt 0 ]]; then
   echo "[start.sh] Sleeping ${FRESHCLAM_DELAY_SECS}s before initial freshclam..."

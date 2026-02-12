@@ -40,7 +40,7 @@ public class FileScanHandler(
             {
                 Status = "infected",
                 Engine = "clamav",
-                Malware = result.InfectedFiles.FirstOrDefault()?.VirusName ?? "unknown",
+                Malware = result.InfectedFiles?.FirstOrDefault()?.VirusName ?? "unknown",
                 FileName = file.FileName,
                 Size = file.Length,
                 ScanDurationMs = scanDuration.TotalMilliseconds

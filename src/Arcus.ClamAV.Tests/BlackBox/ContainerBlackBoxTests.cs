@@ -1,7 +1,8 @@
 using System.Net;
 using System.Net.Http.Json;
+using System.Text.Json;
 using Arcus.ClamAV.Models;
-using FluentAssertions;
+using Shouldly;
 using Xunit;
 
 namespace Arcus.ClamAV.Tests.BlackBox;
@@ -10,37 +11,27 @@ namespace Arcus.ClamAV.Tests.BlackBox;
 /// Black-box tests that run against a live Docker container.
 /// These tests verify the application behavior when running in Docker.
 /// 
-/// Prerequisites:
-/// - Docker container must be running on localhost:5000
-/// - ClamAV daemon must be accessible from the container
+/// The DockerComposeFixture automatically:
+/// - Starts docker-compose before any tests run
+/// - Waits for containers to be healthy
+/// - Stops containers after all tests complete
+/// 
+/// Just press "Run Tests" in VS Code or run: dotnet test --filter "Category=BlackBox"
 /// 
 /// Run in GitHub Actions via: .github/workflows/test-integration.yml
 /// </summary>
 [Trait("Category", "BlackBox")]
 [Collection("BlackBox Tests")]
-public class ContainerBlackBoxTests : IAsyncLifetime
+public class ContainerBlackBoxTests
 {
     private readonly HttpClient _httpClient;
     private readonly string _baseUrl;
-    private readonly int _maxRetries = 30;
-    private readonly int _delayMs = 1000;
 
-    public ContainerBlackBoxTests()
+    public ContainerBlackBoxTests(DockerComposeFixture fixture)
     {
-        _baseUrl = Environment.GetEnvironmentVariable("CONTAINER_BASE_URL") ?? "http://localhost:5000";
+        // The fixture ensures containers are running and healthy
+        _baseUrl = fixture.BaseUrl;
         _httpClient = new HttpClient { Timeout = TimeSpan.FromSeconds(10) };
-    }
-
-    public async Task InitializeAsync()
-    {
-        // Wait for container to be healthy
-        await WaitForContainerHealthyAsync();
-    }
-
-    public async Task DisposeAsync()
-    {
-        _httpClient?.Dispose();
-        await Task.CompletedTask;
     }
 
     /// <summary>
@@ -54,7 +45,7 @@ public class ContainerBlackBoxTests : IAsyncLifetime
         var response = await _httpClient.GetAsync($"{_baseUrl}/healthz");
 
         // Assert
-        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        response.StatusCode.ShouldBe(HttpStatusCode.OK);
     }
 
     /// <summary>
@@ -68,9 +59,9 @@ public class ContainerBlackBoxTests : IAsyncLifetime
         var content = await response.Content.ReadFromJsonAsync<HealthResponse>();
 
         // Assert
-        response.StatusCode.Should().Be(HttpStatusCode.OK);
-        content.Should().NotBeNull();
-        content!.Status.Should().Be("ok");
+        response.StatusCode.ShouldBe(HttpStatusCode.OK);
+        content.ShouldNotBeNull();
+        content!.Status.ShouldBe("ok");
     }
 
     /// <summary>
@@ -84,9 +75,9 @@ public class ContainerBlackBoxTests : IAsyncLifetime
         var content = await response.Content.ReadFromJsonAsync<VersionResponse>();
 
         // Assert
-        response.StatusCode.Should().Be(HttpStatusCode.OK);
-        content.Should().NotBeNull();
-        content!.Version.Should().NotBeNullOrEmpty();
+        response.StatusCode.ShouldBe(HttpStatusCode.OK);
+        content.ShouldNotBeNull();
+        content!.ClamAvVersion.ShouldNotBeNullOrEmpty();
     }
 
     /// <summary>
@@ -108,7 +99,7 @@ public class ContainerBlackBoxTests : IAsyncLifetime
         var response = await _httpClient.PostAsync($"{_baseUrl}/scan", content);
 
         // Assert - Should accept the upload (may reject due to ClamAV not running, but endpoint should be healthy)
-        response.StatusCode.Should().BeOneOf(
+        response.StatusCode.ShouldBeOneOf(
             HttpStatusCode.OK,
             HttpStatusCode.BadRequest,
             HttpStatusCode.InternalServerError // ClamAV might not be available, but endpoint should exist
@@ -124,14 +115,14 @@ public class ContainerBlackBoxTests : IAsyncLifetime
         // Arrange
         var scanRequest = new JsonScanRequest
         {
-            Data = "VGhpcyBpcyBhIHRlc3Q=" // Base64 encoded test data
+            Payload = JsonDocument.Parse("{\"data\": \"VGhpcyBpcyBhIHRlc3Q=\"}").RootElement
         };
 
         // Act
         var response = await _httpClient.PostAsJsonAsync($"{_baseUrl}/scan/json", scanRequest);
 
         // Assert
-        response.StatusCode.Should().BeOneOf(
+        response.StatusCode.ShouldBeOneOf(
             HttpStatusCode.OK,
             HttpStatusCode.BadRequest,
             HttpStatusCode.InternalServerError // ClamAV might not be available, but endpoint should exist
@@ -151,11 +142,11 @@ public class ContainerBlackBoxTests : IAsyncLifetime
         };
 
         // Act
-        var response = await _httpClient.PostAsJsonAsync($"{_baseUrl}/scan/url", scanRequest);
+        var response = await _httpClient.PostAsJsonAsync($"{_baseUrl}/scan/async/url", scanRequest);
 
         // Assert
-        response.StatusCode.Should().BeOneOf(
-            HttpStatusCode.OK,
+        response.StatusCode.ShouldBeOneOf(
+            HttpStatusCode.Accepted, // Async operation returns 202
             HttpStatusCode.BadRequest,
             HttpStatusCode.InternalServerError // URL fetch might fail, but endpoint should exist
         );
@@ -178,17 +169,17 @@ public class ContainerBlackBoxTests : IAsyncLifetime
         var response = await _httpClient.PostAsync($"{_baseUrl}/scan/async", content);
 
         // Assert
-        response.StatusCode.Should().BeOneOf(
-            HttpStatusCode.OK,
+        response.StatusCode.ShouldBeOneOf(
+            HttpStatusCode.Accepted, // Async operations return 202
             HttpStatusCode.BadRequest,
             HttpStatusCode.InternalServerError
         );
 
-        if (response.StatusCode == HttpStatusCode.OK)
+        if (response.StatusCode == HttpStatusCode.Accepted)
         {
             var result = await response.Content.ReadFromJsonAsync<AsyncScanResponse>();
-            result.Should().NotBeNull();
-            result!.JobId.Should().NotBeNullOrEmpty();
+            result.ShouldNotBeNull();
+            result!.JobId.ShouldNotBeNullOrEmpty();
         }
     }
 
@@ -202,7 +193,7 @@ public class ContainerBlackBoxTests : IAsyncLifetime
         var response = await _httpClient.GetAsync($"{_baseUrl}/invalid/endpoint");
 
         // Assert
-        response.StatusCode.Should().Be(HttpStatusCode.NotFound);
+        response.StatusCode.ShouldBe(HttpStatusCode.NotFound);
     }
 
     /// <summary>
@@ -220,41 +211,7 @@ public class ContainerBlackBoxTests : IAsyncLifetime
         stopwatch.Stop();
 
         // Assert
-        response.IsSuccessStatusCode.Should().BeTrue();
-        stopwatch.ElapsedMilliseconds.Should().BeLessThan(5000);
-    }
-
-    // Helper methods
-
-    /// <summary>
-    /// Wait for the container to be healthy before running tests.
-    /// </summary>
-    private async Task WaitForContainerHealthyAsync()
-    {
-        int attempt = 0;
-
-        while (attempt < _maxRetries)
-        {
-            try
-            {
-                var response = await _httpClient.GetAsync($"{_baseUrl}/healthz");
-                if (response.IsSuccessStatusCode)
-                {
-                    System.Diagnostics.Debug.WriteLine($"✓ Container is healthy after {attempt} attempts");
-                    return;
-                }
-            }
-            catch
-            {
-                // Container not ready yet
-            }
-
-            attempt++;
-            await Task.Delay(_delayMs);
-        }
-
-        throw new TimeoutException(
-            $"Container failed to become healthy after {_maxRetries} attempts ({_maxRetries * _delayMs}ms). " +
-            $"Base URL: {_baseUrl}. Ensure the container is running and accessible.");
+        response.IsSuccessStatusCode.ShouldBeTrue();
+        stopwatch.ElapsedMilliseconds.ShouldBeLessThan(5000);
     }
 }

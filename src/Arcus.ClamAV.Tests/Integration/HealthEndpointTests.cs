@@ -29,7 +29,7 @@ public class HealthEndpointTests : IAsyncLifetime
         var response = await _client.GetAsync("/healthz");
 
         // Assert
-        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        response.StatusCode.ShouldBe(HttpStatusCode.OK);
     }
 
     [Fact]
@@ -40,9 +40,9 @@ public class HealthEndpointTests : IAsyncLifetime
         var content = await response.Content.ReadFromJsonAsync<HealthResponse>();
 
         // Assert
-        response.StatusCode.Should().Be(HttpStatusCode.OK);
-        content.Should().NotBeNull();
-        content!.Status.Should().Be("ok");
+        response.StatusCode.ShouldBe(HttpStatusCode.OK);
+        content.ShouldNotBeNull();
+        content!.Status.ShouldBe("ok");
     }
 
     [Fact]
@@ -57,7 +57,7 @@ public class HealthEndpointTests : IAsyncLifetime
         var response = await _client.GetAsync("/version");
 
         // Assert
-        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        response.StatusCode.ShouldBe(HttpStatusCode.OK);
     }
 
     [Fact]
@@ -74,9 +74,9 @@ public class HealthEndpointTests : IAsyncLifetime
         var content = await response.Content.ReadFromJsonAsync<VersionResponse>();
 
         // Assert
-        response.StatusCode.Should().Be(HttpStatusCode.OK);
-        content.Should().NotBeNull();
-        content!.ClamAvVersion.Should().Be(expectedVersion);
+        response.StatusCode.ShouldBe(HttpStatusCode.OK);
+        content.ShouldNotBeNull();
+        content!.ClamAvVersion.ShouldBe(expectedVersion);
     }
 }
 

@@ -35,7 +35,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Initialize CodeQL
-        uses: github/codeql-action/init@v3
+        uses: github/codeql-action/init@v4
         with:
           languages: ${{ matrix.language }}
           queries: security-and-quality
@@ -52,7 +52,7 @@ jobs:
         run: dotnet build --no-restore src/Arcus.ClamAV.sln -c Release
 
       - name: Perform CodeQL Analysis
-        uses: github/codeql-action/analyze@v3
+        uses: github/codeql-action/analyze@v4
         with:
           category: "/language:csharp"
 
@@ -63,29 +63,17 @@ jobs:
       contents: read
       security-events: write
 
-    container:
-      image: returntocorp/semgrep
-
     steps:
       - uses: actions/checkout@v4
 
       - name: Run Semgrep Scan
-        run: |
-          semgrep \
-            --config=p/csharp \
-            --config=p/owasp-top-ten \
-            --config=p/security-audit \
-            --json \
-            --output=semgrep-results.json \
-            src/
-
-      - name: Upload Semgrep Results to GitHub Security Tab
-        uses: github/codeql-action/upload-sarif@v3
-        if: always()
+        uses: returntocorp/semgrep-action@v1
         with:
-          sarif_file: semgrep-results.json
-          tool_name: Semgrep
-          wait_for_processing: true
+          config: >-
+            p/csharp
+            p/owasp-top-ten
+            p/security-audit
+          generateSarif: true
 
   stylecopanalyzer:
     name: StyleCop Analyzer

@@ -53,7 +53,7 @@ public class JsonScanHandler(
 
                 if (scanResult.Result == ClamScanResults.VirusDetected)
                 {
-                    var virusName = scanResult.InfectedFiles.FirstOrDefault()?.VirusName ?? "unknown";
+                    var virusName = scanResult.InfectedFiles?.FirstOrDefault()?.VirusName ?? "unknown";
                     detail.Malware = virusName;
                     result.Status = "infected";
                     result.Malware = virusName;
@@ -91,7 +91,7 @@ public class JsonScanHandler(
 
                 if (scanResult.Result == ClamScanResults.VirusDetected)
                 {
-                    var virusName = scanResult.InfectedFiles.FirstOrDefault()?.VirusName ?? "unknown";
+                    var virusName = scanResult.InfectedFiles?.FirstOrDefault()?.VirusName ?? "unknown";
                     detail.Malware = virusName;
                     result.Status = "infected";
                     result.Malware = virusName;
