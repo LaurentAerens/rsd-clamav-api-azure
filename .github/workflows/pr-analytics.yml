@@ -1,0 +1,153 @@
+name: PR Analytics & Insights
+
+on:
+  pull_request:
+    branches: [ main ]
+    types: [opened, synchronize, reopened, ready_for_review]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  pr-size-analysis:
+    name: PR Size Analysis
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Analyze PR Size
+        id: size
+        run: |
+          # Get changed files and lines
+          CHANGED_FILES=$(git diff --name-only origin/${{ github.base_ref }}...HEAD | wc -l)
+          ADDED_LINES=$(git diff --numstat origin/${{ github.base_ref }}...HEAD | awk '{sum += $1} END {print sum}')
+          DELETED_LINES=$(git diff --numstat origin/${{ github.base_ref }}...HEAD | awk '{sum += $2} END {print sum}')
+          CHANGED_LINES=$((ADDED_LINES + DELETED_LINES))
+          
+          echo "CHANGED_FILES=$CHANGED_FILES" >> $GITHUB_OUTPUT
+          echo "ADDED_LINES=${ADDED_LINES:-0}" >> $GITHUB_OUTPUT
+          echo "DELETED_LINES=${DELETED_LINES:-0}" >> $GITHUB_OUTPUT
+          echo "CHANGED_LINES=$CHANGED_LINES" >> $GITHUB_OUTPUT
+          
+          # Determine size category
+          if [ "$CHANGED_LINES" -lt 100 ]; then
+            SIZE="xs"
+            LABEL="size: XS"
+          elif [ "$CHANGED_LINES" -lt 250 ]; then
+            SIZE="s"
+            LABEL="size: S"
+          elif [ "$CHANGED_LINES" -lt 500 ]; then
+            SIZE="m"
+            LABEL="size: M"
+          elif [ "$CHANGED_LINES" -lt 1000 ]; then
+            SIZE="l"
+            LABEL="size: L"
+          else
+            SIZE="xl"
+            LABEL="size: XL"
+          fi
+          
+          echo "SIZE=$SIZE" >> $GITHUB_OUTPUT
+          echo "SIZE_LABEL=$LABEL" >> $GITHUB_OUTPUT
+
+      - name: Add Size Label
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const sizeLabel = '${{ steps.size.outputs.SIZE_LABEL }}';
+            const prNumber = context.payload.pull_request.number;
+            
+            // Remove old size labels
+            const oldLabels = ['size: XS', 'size: S', 'size: M', 'size: L', 'size: XL'];
+            for (const label of oldLabels) {
+              try {
+                await github.rest.issues.removeLabel({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: prNumber,
+                  name: label
+                });
+              } catch (error) {
+                // Label might not exist, ignore
+              }
+            }
+            
+            // Add new size label
+            await github.rest.issues.addLabels({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: prNumber,
+              labels: [sizeLabel]
+            });
+
+      - name: Post PR Analytics Comment
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const changedFiles = '${{ steps.size.outputs.CHANGED_FILES }}';
+            const addedLines = '${{ steps.size.outputs.ADDED_LINES }}';
+            const deletedLines = '${{ steps.size.outputs.DELETED_LINES }}';
+            const sizeCategory = '${{ steps.size.outputs.SIZE }}';
+            
+            let sizeEmoji = '📊';
+            if (sizeCategory === 'xs') sizeEmoji = '⚪';
+            else if (sizeCategory === 's') sizeEmoji = '🟢';
+            else if (sizeCategory === 'm') sizeEmoji = '🟡';
+            else if (sizeCategory === 'l') sizeEmoji = '🟠';
+            else if (sizeCategory === 'xl') sizeEmoji = '🔴';
+            
+            let comment = `${sizeEmoji} **PR Size Analysis**\n\n`;
+            comment += '| Metric | Value |\n';
+            comment += '|--------|-------|\n';
+            comment += `| Files Changed | ${changedFiles} |\n`;
+            comment += `| Lines Added | ${addedLines} |\n`;
+            comment += `| Lines Deleted | ${deletedLines} |\n`;
+            comment += `| Total Changes | ${parseInt(addedLines) + parseInt(deletedLines)} |\n`;
+            comment += `| Category | ${sizeCategory.toUpperCase()} |\n\n`;
+            comment += sizeCategory === 'xl' 
+              ? '⚠️ **Large PR Detected** - Consider breaking into smaller PRs for easier review.' 
+              : '✅ Good PR size for review';
+            
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: comment
+            });
+
+  pr-draft-check:
+    name: Draft PR Auto-Check
+    runs-on: ubuntu-latest
+    if: github.event.pull_request.draft == true
+
+    steps:
+      - name: Notify Draft Status
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: '📝 **Draft PR detected** - Automated checks will run, but merge is disabled until marked ready for review.'
+            });
+
+  pr-summary:
+    name: PR Analysis Summary
+    runs-on: ubuntu-latest
+    needs: [pr-size-analysis]
+    if: always()
+
+    steps:
+      - name: Summary
+        run: |
+          echo "## PR Analysis Complete"
+          echo "✓ Size analysis and labeling"
+          echo "✓ Best practices suggestions"

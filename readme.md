@@ -12,6 +12,7 @@ It’s designed for local development, testing, and service integration — all 
 - 🧩 **All-in-one container** – ClamAV + REST API + Swagger.
 - 🔐 **Azure AD Authentication** – Secured with OAuth 2.0 client credentials flow.
 - 🔄 **Automatic virus database updates** at start-up.
+- 🛡️ **Extended community signatures** – The sanesecurity/rogue.hdb is loaded in to provide some additional signatures beyond the default ClamAV database without causing too many false positives.
 - 🧠 **Swagger UI** for easy manual testing (`/swagger`) with OAuth2 support.
 - 💬 **Endpoints** for scanning, health checks, and ClamAV version info.
 - ⚡ **Async scanning support** – Upload large files and poll for results (ideal for files >10MB).
@@ -475,6 +476,277 @@ To also remove the virus DB volume:
 ```bash
 docker compose down -v
 ```
+
+---
+
+## ☁️ Azure Container Apps Deployment
+
+Deploy the ClamAV API to Azure Container Apps for production workloads with automatic scaling, managed authentication, and enterprise-grade security.
+
+### 🎯 Why Azure Container Apps?
+
+- **🔐 Built-in Authentication** – Azure AD authentication via EasyAuth (no code changes needed)
+- **📈 Automatic Scaling** – HTTP-based scaling up to 30 replicas
+- **💰 Cost-Effective** – Scale to zero when idle (dev/staging)
+- **🔒 Enterprise Security** – Managed identity, VNet integration, private endpoints
+- **📊 Integrated Monitoring** – Log Analytics, Application Insights, metrics
+- **🌍 Multi-Region** – Built-in geo-replication support
+- **💾 Persistent Storage** – Azure Files for ClamAV database (fast startup)
+
+### 📋 Prerequisites
+
+- Azure subscription with permissions to create resources
+- Azure CLI installed (`az --version`)
+- Bicep CLI installed (`az bicep version`)
+- Azure AD app registration for authentication (or disable for internal use)
+
+### 🚀 Quick Start (3 Steps)
+
+#### 1️⃣ Create Azure AD App Registration (for authentication)
+
+```bash
+# Create app registration for authentication
+az ad app create --display-name "ClamAV API - Production"
+
+# Get the client ID (save this)
+CLIENT_ID=$(az ad app list --display-name "ClamAV API - Production" --query "[0].appId" -o tsv)
+echo "Client ID: $CLIENT_ID"
+```
+
+#### 2️⃣ Create Resource Group and Deploy Infrastructure
+
+```bash
+# Set your parameters
+RESOURCE_GROUP="rg-clamav-prod"
+LOCATION="eastus"
+ENVIRONMENT="prod"
+
+# Create resource group
+az group create --name $RESOURCE_GROUP --location $LOCATION
+
+# Deploy infrastructure using Bicep
+az deployment group create \
+  --resource-group $RESOURCE_GROUP \
+  --template-file infra/bicep/main.bicep \
+  --parameters environmentName=$ENVIRONMENT \
+  --parameters location=$LOCATION \
+  --parameters aadClientId=$CLIENT_ID \
+  --parameters enableAuthentication=true
+```
+
+#### 3️⃣ Build and Push Container Image
+
+```bash
+# Get ACR name from deployment output
+ACR_NAME=$(az deployment group show \
+  --resource-group $RESOURCE_GROUP \
+  --name main \
+  --query properties.outputs.containerRegistryName.value -o tsv)
+
+# Build and push image to ACR
+az acr build \
+  --registry $ACR_NAME \
+  --image clamav-api:latest \
+  --file Dockerfile \
+  .
+
+# Container App automatically pulls the new image
+```
+
+That's it! Your API is now deployed at the URL shown in the deployment output.
+
+### 🔧 Deployment Options
+
+#### Using Parameter Files (Recommended)
+
+Create a parameter file for your environment:
+
+```bash
+# Copy example parameter file
+cp infra/bicep/parameters/example.bicepparam infra/bicep/parameters/prod.bicepparam
+
+# Edit with your values
+nano infra/bicep/parameters/prod.bicepparam
+```
+
+Deploy using the parameter file:
+
+```bash
+az deployment group create \
+  --resource-group $RESOURCE_GROUP \
+  --template-file infra/bicep/main.bicep \
+  --parameters infra/bicep/parameters/prod.bicepparam
+```
+
+#### Using Existing Container Apps Environment
+
+If you have a shared Container Apps environment:
+
+```bash
+az deployment group create \
+  --resource-group $RESOURCE_GROUP \
+  --template-file infra/bicep/main.bicep \
+  --parameters environmentName=$ENVIRONMENT \
+  --parameters location=$LOCATION \
+  --parameters aadClientId=$CLIENT_ID \
+  --parameters useExistingManagedEnvironment=true \
+  --parameters existingManagedEnvironmentName="cae-shared-prod" \
+  --parameters existingManagedEnvironmentResourceGroup="rg-shared-infrastructure"
+```
+
+### 🔐 Authentication
+
+The deployment uses **Azure Container Apps EasyAuth** for zero-code authentication:
+
+- All API endpoints require valid Azure AD tokens
+- Authentication handled at platform level (before reaching your app)
+- Configure in Bicep with `aadClientId` parameter
+- Set `enableAuthentication=false` for internal-only deployments (not recommended for production)
+
+**Testing authenticated endpoints:**
+
+```bash
+# Get access token
+TOKEN=$(az account get-access-token --resource $CLIENT_ID --query accessToken -o tsv)
+
+# Call API with token
+curl -H "Authorization: Bearer $TOKEN" https://your-app.azurecontainerapps.io/healthz
+```
+
+### 📊 Monitoring and Logs
+
+**View logs in Azure Portal:**
+1. Navigate to your Container App in Azure Portal
+2. Select **Log stream** for real-time logs
+3. Select **Metrics** for performance monitoring
+
+**Query logs with CLI:**
+
+```bash
+# Get Container App logs
+az containerapp logs show \
+  --name clamav-api-prod \
+  --resource-group $RESOURCE_GROUP \
+  --follow
+
+# Query Log Analytics
+LOG_ANALYTICS_WORKSPACE=$(az deployment group show \
+  --resource-group $RESOURCE_GROUP \
+  --name main \
+  --query properties.outputs.logAnalyticsWorkspaceName.value -o tsv)
+
+az monitor log-analytics query \
+  --workspace $LOG_ANALYTICS_WORKSPACE \
+  --analytics-query "ContainerAppConsoleLogs_CL | where ContainerAppName_s == 'clamav-api-prod' | order by TimeGenerated desc | take 100"
+```
+
+### 📈 Scaling Configuration
+
+Automatic scaling is configured in the Bicep template:
+
+- **HTTP Scaling**: Scales at 20 concurrent requests per replica
+- **CPU Scaling**: Scales at 70% CPU utilization
+- **Min/Max Replicas**: Configurable (default: 1-5 for prod, 0-2 for dev)
+
+**Adjust scaling:**
+
+```bash
+az containerapp update \
+  --name clamav-api-prod \
+  --resource-group $RESOURCE_GROUP \
+  --min-replicas 2 \
+  --max-replicas 10
+```
+
+### 💾 ClamAV Database Persistence
+
+The deployment uses **Azure Files** to persist the ClamAV virus database (~300MB):
+
+- **Volume Mount**: `/var/lib/clamav` mapped to Azure Files share
+- **Fast Startup**: Database persists across restarts (no re-download)
+- **Shared Access**: All replicas share the same database
+- **Auto-Update**: Database updates on container start if needed
+
+### 🔁 CI/CD with Azure Pipelines
+
+Use the included Azure Pipeline templates for automated deployments:
+
+**Quick setup:**
+
+1. Copy the demo pipeline:
+   ```bash
+   cp .pipelines/demo-deploy-pipeline.yml azure-pipelines.yml
+   ```
+
+2. Update variables in the pipeline:
+   - Azure service connection name
+   - Resource group names
+   - Azure AD client IDs (use variable groups for secrets)
+
+3. Commit and push to trigger deployment
+
+See [`.pipelines/README.md`](.pipelines/README.md) for detailed pipeline documentation.
+
+### 🏗️ Infrastructure Components
+
+The Bicep deployment creates:
+
+- **Azure Container Registry** – Stores container images
+- **Storage Account** – Azure Files for ClamAV database
+- **Log Analytics Workspace** – Centralized logging (optional: skip if using existing environment)
+- **Container Apps Environment** – Managed Kubernetes environment (or use existing)
+- **Container App** – Your ClamAV API with auto-scaling and EasyAuth
+
+### 🛠️ Advanced Configuration
+
+**Custom domain:**
+
+```bash
+az containerapp hostname add \
+  --name clamav-api-prod \
+  --resource-group $RESOURCE_GROUP \
+  --hostname scan.yourdomain.com
+```
+
+**VNet integration:**
+
+```bash
+# Add to Bicep parameters
+--parameters vnetSubnetId="/subscriptions/{sub-id}/resourceGroups/{rg}/providers/Microsoft.Network/virtualNetworks/{vnet}/subnets/{subnet}"
+```
+
+**Increase resources:**
+
+```bash
+az containerapp update \
+  --name clamav-api-prod \
+  --resource-group $RESOURCE_GROUP \
+  --cpu 2.0 \
+  --memory 4.0Gi
+```
+
+### 📝 Detailed Documentation
+
+- **[Azure Deployment Guide](docs/azure-deployment.md)** – Step-by-step deployment walkthrough
+- **[Bicep Parameters Guide](infra/bicep/parameters/README.md)** – All configuration options
+- **[Azure Pipelines Guide](.pipelines/README.md)** – CI/CD setup and usage
+- **[Azure Verified Modules](https://azure.github.io/Azure-Verified-Modules/)** – More about AVM
+
+### 💰 Cost Estimation
+
+Typical monthly costs (eastus region):
+
+- **Development**: ~$5-15/month (scale to zero when idle)
+- **Staging**: ~$20-40/month (min 1 replica)
+- **Production**: ~$50-150/month (min 2 replicas, depending on load)
+
+Actual costs vary based on:
+- Number of active replicas
+- CPU and memory allocation
+- Storage usage (minimal)
+- Data transfer (egress)
+
+Use [Azure Pricing Calculator](https://azure.microsoft.com/pricing/calculator/) for detailed estimates.
 
 ---
 

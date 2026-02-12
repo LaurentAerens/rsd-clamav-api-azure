@@ -79,6 +79,16 @@
               }
             }
           },
+          "406": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScanResponse"
+                }
+              }
+            }
+          },
           "400": {
             "description": "",
             "content": {
@@ -179,6 +189,51 @@
                 }
               }
             }
+          }
+        }
+      }
+    },
+    "/scan/json": {
+      "post": {
+        "tags": [
+          "Scan"
+        ],
+        "operationId": "ScanJson",
+        "requestBody": {
+          "x-name": "jsonRequest",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/JsonScanRequest"
+              }
+            }
+          },
+          "required": true,
+          "x-position": 1
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JsonScanResult"
+                }
+              }
+            }
+          },
+          "406": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JsonScanResult"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": ""
           }
         }
       }
@@ -337,6 +392,71 @@
           "isBase64": {
             "type": "boolean"
           }
+        }
+      },
+      "JsonScanResult": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "status": {
+            "type": "string"
+          },
+          "itemsScanned": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "base64ItemsFound": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "malware": {
+            "type": "string",
+            "nullable": true
+          },
+          "infectedItem": {
+            "type": "string",
+            "nullable": true
+          },
+          "scanDurationMs": {
+            "type": "number",
+            "format": "double"
+          },
+          "details": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ScannedItemDetail"
+            }
+          }
+        }
+      },
+      "ScannedItemDetail": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string"
+          },
+          "size": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "status": {
+            "type": "string"
+          },
+          "malware": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "JsonScanRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "payload": {}
         }
       },
       "ScanStatusResponse": {

@@ -1,0 +1,134 @@
+name: Code Quality & SAST
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - "src/**"
+      - ".editorconfig"
+      - ".github/workflows/code-quality.yml"
+  pull_request:
+    branches: [ main ]
+    paths:
+      - "src/**"
+      - ".editorconfig"
+
+env:
+  DOTNET_VERSION: '10.0.x'
+
+jobs:
+  codeql:
+    name: CodeQL Analysis
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+      actions: read
+
+    strategy:
+      matrix:
+        language: [ 'csharp' ]
+      fail-fast: false
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v4
+        with:
+          languages: ${{ matrix.language }}
+          queries: security-and-quality
+          config-file: .github/codeql-config.yml
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Restore dependencies
+        run: dotnet restore src/Arcus.ClamAV.sln
+
+      - name: Build for CodeQL
+        run: dotnet build --no-restore src/Arcus.ClamAV.sln -c Release
+
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v4
+        with:
+          category: "/language:csharp"
+
+  semgrep:
+    name: Semgrep Analysis
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run Semgrep Scan (Docker)
+        run: |
+          docker run --rm \
+            -v "$(pwd):/src" \
+            returntocorp/semgrep:latest \
+            semgrep scan /src/src \
+              --config=p/csharp \
+              --config=p/owasp-top-ten \
+              --config=p/security-audit \
+              --config=p/secrets \
+              --config=p/cwe-top-25 \
+              --sarif --output=/src/semgrep-results.sarif || true
+
+      - name: Upload Semgrep Results
+        uses: github/codeql-action/upload-sarif@v4
+        with:
+          sarif_file: semgrep-results.sarif
+        if: always()
+
+  stylecopanalyzer:
+    name: StyleCop Analyzer
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      checks: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Restore dependencies
+        run: dotnet restore src/Arcus.ClamAV.sln
+
+      - name: Build with StyleCop Analysis
+        run: |
+          dotnet build src/Arcus.ClamAV.sln \
+            -c Release \
+            -p:EnforceCodeStyleInBuild=true \
+            -p:TreatWarningsAsErrors=true \
+            --no-restore \
+            --verbosity normal 2>&1 | tee build-output.log
+
+      - name: Check for StyleCop Violations
+        if: failure()
+        run: |
+          echo "StyleCop violations detected. Review build output above."
+          exit 1
+
+  code-quality-summary:
+    name: Code Quality Summary
+    runs-on: ubuntu-latest
+    needs: [codeql, semgrep, stylecopanalyzer]
+    if: always()
+
+    steps:
+      - name: Check Code Quality Status
+        run: |
+          echo "Code Quality Analysis Complete"
+          echo "✓ CodeQL: SAST vulnerability detection"
+          echo "✓ Semgrep: Pattern-based code scanning"
+          echo "✓ StyleCop: Code style enforcement"

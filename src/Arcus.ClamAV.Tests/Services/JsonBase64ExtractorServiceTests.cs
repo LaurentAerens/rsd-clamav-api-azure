@@ -29,9 +29,9 @@ public class JsonBase64ExtractorServiceTests
         var extracts = _service.ExtractBase64Properties(jsonElement);
 
         // Assert
-        extracts.Should().HaveCount(1);
-        extracts[0].Path.Should().Be("content");
-        extracts[0].DecodedContent.Should().BeEquivalentTo(originalContent);
+        extracts.Count.ShouldBe(1);
+        extracts[0].Path.ShouldBe("content");
+        extracts[0].DecodedContent.ShouldBeEquivalentTo(originalContent);
     }
 
     [Fact]
@@ -42,7 +42,7 @@ public class JsonBase64ExtractorServiceTests
         var content2 = new byte[200];
         Random.Shared.NextBytes(content1);
         Random.Shared.NextBytes(content2);
-        
+
         var json = JsonSerializer.Serialize(new
         {
             file1 = Convert.ToBase64String(content1),
@@ -54,9 +54,9 @@ public class JsonBase64ExtractorServiceTests
         var extracts = _service.ExtractBase64Properties(jsonElement);
 
         // Assert
-        extracts.Should().HaveCount(2);
-        extracts.Should().Contain(e => e.Path == "file1");
-        extracts.Should().Contain(e => e.Path == "file2");
+        extracts.Count.ShouldBe(2);
+        extracts.ShouldContain(e => e.Path == "file1");
+        extracts.ShouldContain(e => e.Path == "file2");
     }
 
     [Fact]
@@ -65,7 +65,7 @@ public class JsonBase64ExtractorServiceTests
         // Arrange
         var content = new byte[200];
         Random.Shared.NextBytes(content);
-        
+
         var json = JsonSerializer.Serialize(new
         {
             envelope = new
@@ -82,8 +82,8 @@ public class JsonBase64ExtractorServiceTests
         var extracts = _service.ExtractBase64Properties(jsonElement);
 
         // Assert
-        extracts.Should().HaveCount(1);
-        extracts[0].Path.Should().Be("envelope.body.attachment");
+        extracts.Count.ShouldBe(1);
+        extracts[0].Path.ShouldBe("envelope.body.attachment");
     }
 
     [Fact]
@@ -94,7 +94,7 @@ public class JsonBase64ExtractorServiceTests
         var content2 = new byte[200];
         Random.Shared.NextBytes(content1);
         Random.Shared.NextBytes(content2);
-        
+
         var json = JsonSerializer.Serialize(new
         {
             attachments = new[]
@@ -109,9 +109,9 @@ public class JsonBase64ExtractorServiceTests
         var extracts = _service.ExtractBase64Properties(jsonElement);
 
         // Assert
-        extracts.Should().HaveCount(2);
-        extracts.Should().Contain(e => e.Path == "attachments[0].data");
-        extracts.Should().Contain(e => e.Path == "attachments[1].data");
+        extracts.Count.ShouldBe(2);
+        extracts.ShouldContain(e => e.Path == "attachments[0].data");
+        extracts.ShouldContain(e => e.Path == "attachments[1].data");
     }
 
     [Fact]
@@ -125,7 +125,7 @@ public class JsonBase64ExtractorServiceTests
         var extracts = _service.ExtractBase64Properties(jsonElement);
 
         // Assert
-        extracts.Should().BeEmpty(); // Too short to be considered
+        extracts.ShouldBeEmpty(); // Too short to be considered
     }
 
     [Fact]
@@ -139,7 +139,7 @@ public class JsonBase64ExtractorServiceTests
         var extracts = _service.ExtractBase64Properties(jsonElement);
 
         // Assert
-        extracts.Should().BeEmpty();
+        extracts.ShouldBeEmpty();
     }
 
     [Fact]
@@ -154,7 +154,7 @@ public class JsonBase64ExtractorServiceTests
         var extracts = _service.ExtractBase64Properties(jsonElement);
 
         // Assert
-        extracts.Should().BeEmpty();
+        extracts.ShouldBeEmpty();
     }
 
     [Fact]
@@ -163,7 +163,7 @@ public class JsonBase64ExtractorServiceTests
         // Arrange
         var content = new byte[200];
         Random.Shared.NextBytes(content);
-        
+
         var json = JsonSerializer.Serialize(new
         {
             id = "12345",
@@ -179,8 +179,8 @@ public class JsonBase64ExtractorServiceTests
         var extracts = _service.ExtractBase64Properties(jsonElement);
 
         // Assert
-        extracts.Should().HaveCount(1);
-        extracts[0].Path.Should().Be("fileContent");
+        extracts.Count.ShouldBe(1);
+        extracts[0].Path.ShouldBe("fileContent");
     }
 
     [Fact]
@@ -194,6 +194,6 @@ public class JsonBase64ExtractorServiceTests
         var extracts = _service.ExtractBase64Properties(jsonElement);
 
         // Assert
-        extracts.Should().BeEmpty();
+        extracts.ShouldBeEmpty();
     }
 }

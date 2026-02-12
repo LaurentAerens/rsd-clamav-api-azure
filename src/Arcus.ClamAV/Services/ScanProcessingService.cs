@@ -5,12 +5,14 @@ namespace Arcus.ClamAV.Services;
 
 public class ScanProcessingService(
     IScanJobService jobService,
+    ITelemetryService telemetryService,
     IConfiguration configuration,
     ILogger<ScanProcessingService> logger)
     : IScanProcessingService
 {
     public async Task<bool> ProcessFileScanAsync(string jobId, string tempFilePath, CancellationToken cancellationToken)
     {
+        var stopwatch = System.Diagnostics.Stopwatch.StartNew();
         try
         {
             jobService.UpdateJobStatus(jobId, "scanning");
@@ -20,15 +22,37 @@ public class ScanProcessingService(
 
             if (scanResult.IsSuccess)
             {
-                jobService.UpdateJobStatus(jobId, scanResult.IsClean ? "clean" : "infected", 
+                jobService.UpdateJobStatus(jobId, scanResult.IsClean ? "clean" : "infected",
                     malware: scanResult.MalwareName);
-                logger.LogInformation("Job {JobId} scan complete: {Status}", jobId, 
-                    scanResult.IsClean ? "Clean" : $"Infected with {scanResult.MalwareName}");
+
+                // Track telemetry for completed scan
+                stopwatch.Stop();
+                var fileInfo = new FileInfo(tempFilePath);
+                telemetryService.TrackScanCompleted(
+                    stopwatch.ElapsedMilliseconds,
+                    scanResult.IsClean,
+                    fileInfo.Exists ? fileInfo.Length : 0,
+                    "file");
+
+                if (!scanResult.IsClean && scanResult.MalwareName != null)
+                {
+                    telemetryService.TrackMalwareDetected(scanResult.MalwareName, Path.GetFileName(tempFilePath), "file");
+                }
+
+                logger.LogInformation("Job {JobId} scan complete: {Status}", jobId,
+                    scanResult.IsClean ? "Clean" : "Infected");
+                if (!scanResult.IsClean && scanResult.MalwareName != null)
+                {
+                    var displayMalwareName = scanResult.MalwareName;
+                    logger.LogInformation("Job {JobId} malware detected: {MalwareName}", jobId, displayMalwareName);
+                }
             }
             else
             {
                 jobService.UpdateJobStatus(jobId, "error", error: scanResult.Error);
-                logger.LogError("Job {JobId} scan error: {Error}", jobId, scanResult.Error);
+                telemetryService.TrackScanFailed(scanResult.Error ?? "Unknown error", "file");
+                var errorMessage = scanResult.Error is null ? "Unknown error" : scanResult.Error;
+                logger.LogError("Job {JobId} scan error: {Error}", jobId, errorMessage);
             }
 
             jobService.CompleteJob(jobId);
@@ -36,7 +60,9 @@ public class ScanProcessingService(
         }
         catch (Exception ex)
         {
+            stopwatch.Stop();
             jobService.UpdateJobStatus(jobId, "error", error: ex.Message);
+            telemetryService.TrackScanFailed(ex.Message, "file", ex);
             logger.LogError(ex, "Error processing scan job {JobId}", jobId);
             jobService.CompleteJob(jobId);
             return false;
@@ -50,11 +76,12 @@ public class ScanProcessingService(
 
     public async Task<bool> ProcessUrlScanAsync(string jobId, string url, string tempFilePath, long maxFileSize, CancellationToken cancellationToken)
     {
+        var stopwatch = System.Diagnostics.Stopwatch.StartNew();
         try
         {
             // Download phase
             jobService.UpdateJobStatus(jobId, "downloading");
-            logger.LogInformation("Started downloading file from {Url} for job {JobId}", url, jobId);
+            logger.LogInformation("Started downloading file for job {JobId}", jobId);
 
             var downloadSuccess = await DownloadFileAsync(jobId, url, tempFilePath, maxFileSize, cancellationToken);
             if (!downloadSuccess)
@@ -69,7 +96,9 @@ public class ScanProcessingService(
         }
         catch (Exception ex)
         {
+            stopwatch.Stop();
             jobService.UpdateJobStatus(jobId, "error", error: ex.Message);
+            telemetryService.TrackScanFailed(ex.Message, "url", ex);
             logger.LogError(ex, "Error processing URL scan job {JobId}", jobId);
             jobService.CompleteJob(jobId);
             CleanupTempFile(tempFilePath, jobId);
@@ -93,7 +122,7 @@ public class ScanProcessingService(
             // If Content-Length is present, check it before downloading
             if (contentLength.HasValue)
             {
-                logger.LogInformation("File at {Url} has Content-Length: {Size} bytes", url, contentLength.Value);
+                logger.LogInformation("File has Content-Length: {Size} bytes", contentLength.Value);
 
                 if (contentLength.Value > maxFileSize)
                 {
@@ -113,7 +142,7 @@ public class ScanProcessingService(
             }
             else
             {
-                logger.LogWarning("No Content-Length header for {Url}, will monitor size during download", url);
+                logger.LogWarning("No Content-Length header, will monitor size during download");
             }
 
             // Download the file with size monitoring
@@ -141,11 +170,13 @@ public class ScanProcessingService(
                     try
                     {
                         if (File.Exists(tempFilePath))
+                        {
                             File.Delete(tempFilePath);
+                        }
                     }
                     catch (Exception deleteEx)
                     {
-                        logger.LogWarning(deleteEx, "Failed to delete temp file {Path}", tempFilePath);
+                        logger.LogWarning(deleteEx, "Failed to delete temp file");
                     }
 
                     jobService.UpdateJobStatus(jobId, "error",
@@ -158,7 +189,7 @@ public class ScanProcessingService(
                 await fileStream.WriteAsync(buffer, 0, bytesRead, cancellationToken);
             }
 
-            logger.LogInformation("Downloaded {Bytes} bytes from {Url} to {Path}", totalBytesRead, url, tempFilePath);
+            logger.LogInformation("Downloaded {Bytes} bytes", totalBytesRead);
 
             // Update job with actual file size if we didn't have Content-Length
             if (!contentLength.HasValue)
@@ -174,7 +205,7 @@ public class ScanProcessingService(
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "Error downloading file from {Url} for job {JobId}", url, jobId);
+            logger.LogError(ex, "Error downloading file for job {JobId}", jobId);
             jobService.UpdateJobStatus(jobId, "error", error: $"Failed to download file: {ex.Message}");
             jobService.CompleteJob(jobId);
 
@@ -229,7 +260,7 @@ public class ScanProcessingService(
         }
         catch (Exception ex)
         {
-            logger.LogWarning(ex, "Failed to delete temp file {Path}", tempFilePath);
+            logger.LogWarning(ex, "Failed to delete temp file");
         }
     }
 

@@ -1,4 +1,4 @@
-name: CI - Build and Test
+name: CI - Build & Test
 
 on:
   push:
@@ -10,10 +10,36 @@ on:
     paths:
       - "src/**"
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 jobs:
+  # Core Build & Unit Tests
   build-and-test:
+    name: Build & Unit Tests
     uses: ./.github/workflows/build-test-template.yml
     with:
       project_name: ClamAV.Api
-      project_path: src/Arcus.ClamAV
+      project_path: src/Arcus.ClamAV.sln
       run_tests: true
+
+  # Quality Gates Summary
+  quality-gates:
+    name: Quality Gates Summary
+    runs-on: ubuntu-latest
+    needs: [build-and-test]
+    if: always()
+    
+    steps:
+      - name: Check Quality Gates
+        run: |
+          echo "## Build & Unit Tests Status"
+          echo "Build and unit tests: ${{ needs.build-and-test.result }}"
+          
+          if [[ "${{ needs.build-and-test.result }}" == "failure" ]]; then
+            echo "❌ Build or tests failed"
+            exit 1
+          fi
+          
+          echo "✅ Core quality gates passed!"

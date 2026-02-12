@@ -2,6 +2,7 @@ using Arcus.ClamAV.Models;
 using Arcus.ClamAV.Services;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
+using Moq;
 
 namespace Arcus.ClamAV.Tests.Services;
 
@@ -12,20 +13,18 @@ public class QueuedHostedServiceTests
     {
         // Arrange
         var taskQueueMock = new Mock<IBackgroundTaskQueue>();
+        var telemetryServiceMock = new Mock<ITelemetryService>();
         var loggerMock = new Mock<ILogger<QueuedHostedService>>();
         var configMock = new Mock<IConfiguration>();
         configMock.Setup(c => c["BackgroundProcessing:MaxConcurrentWorkers"]).Returns("1");
 
-        var service = new QueuedHostedService(taskQueueMock.Object, loggerMock.Object, configMock.Object);
+        var service = new QueuedHostedService(
+            taskQueueMock.Object,
+            telemetryServiceMock.Object,
+            loggerMock.Object,
+            configMock.Object);
 
-        // Setup the queue to return one task then null (to stop the service)
-        var taskExecuted = false;
-        Task<bool> TestTask(CancellationToken ct)
-        {
-            taskExecuted = true;
-            return Task.FromResult(true);
-        }
-
+        // Setup the queue to return null (to stop the service)
         taskQueueMock.Setup(q => q.DequeueAsync(It.IsAny<CancellationToken>()))
             .ReturnsAsync((Func<CancellationToken, Task<bool>>?)null);
 
@@ -38,7 +37,7 @@ public class QueuedHostedServiceTests
         await service.StopAsync(CancellationToken.None);
 
         // Assert
-        service.Should().NotBeNull();
+        service.ShouldNotBeNull();
     }
 
     [Fact]
@@ -46,11 +45,16 @@ public class QueuedHostedServiceTests
     {
         // Arrange
         var taskQueueMock = new Mock<IBackgroundTaskQueue>();
+        var telemetryServiceMock = new Mock<ITelemetryService>();
         var loggerMock = new Mock<ILogger<QueuedHostedService>>();
         var configMock = new Mock<IConfiguration>();
         configMock.Setup(c => c["BackgroundProcessing:MaxConcurrentWorkers"]).Returns("4");
 
-        var service = new QueuedHostedService(taskQueueMock.Object, loggerMock.Object, configMock.Object);
+        var service = new QueuedHostedService(
+            taskQueueMock.Object,
+            telemetryServiceMock.Object,
+            loggerMock.Object,
+            configMock.Object);
 
         taskQueueMock.Setup(q => q.DequeueAsync(It.IsAny<CancellationToken>()))
             .ReturnsAsync((Func<CancellationToken, Task<bool>>?)null);
@@ -64,7 +68,7 @@ public class QueuedHostedServiceTests
         await service.StopAsync(CancellationToken.None);
 
         // Assert - service should have created 4 workers
-        service.Should().NotBeNull();
+        service.ShouldNotBeNull();
     }
 }
 

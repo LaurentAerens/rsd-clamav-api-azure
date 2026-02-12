@@ -54,7 +54,9 @@ namespace Arcus.ClamAV.Api.Client.Security
                 var token = await _credential.Value.GetTokenAsync(context, cancellationToken);
 
                 if (string.IsNullOrWhiteSpace(token.Token))
+                {
                     throw new InvalidOperationException("Token acquisition returned empty access token");
+                }
 
                 return token.Token;
             }
@@ -68,7 +70,9 @@ namespace Arcus.ClamAV.Api.Client.Security
         private static string ExtractTenantIdFromAuthority(string? authority)
         {
             if (string.IsNullOrWhiteSpace(authority))
+            {
                 throw new ArgumentNullException(nameof(authority), "Authority URL cannot be null or empty");
+            }
 
             // Example: https://login.microsoftonline.com/{tenantId}/v2.0
             var uri = new Uri(authority);

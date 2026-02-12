@@ -12,10 +12,6 @@ mkdir -p /var/lib/clamav /var/log/clamav
 chown -R clamav:clamav /var/lib/clamav /var/log/clamav
 chmod 755 /var/lib/clamav /var/log/clamav
 
-# Prepare log file for clamd
-touch /var/log/clamav/clamd.log
-chown clamav:clamav /var/log/clamav/clamd.log
-
 # Optional delay before initial DB update
 if [[ "${FRESHCLAM_DELAY_SECS}" -gt 0 ]]; then
   echo "[start.sh] Sleeping ${FRESHCLAM_DELAY_SECS}s before initial freshclam..."

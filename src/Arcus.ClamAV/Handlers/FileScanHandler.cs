@@ -14,7 +14,9 @@ public class FileScanHandler(
     public async Task<IResult> HandleSyncAsync(IFormFile file)
     {
         if (file == null || file.Length == 0)
+        {
             return Results.BadRequest(new ErrorResponse { Error = "Missing or empty file" });
+        }
 
         var host = configuration["CLAMD_HOST"] ?? Environment.GetEnvironmentVariable("CLAMD_HOST") ?? "127.0.0.1";
         var port = int.TryParse(configuration["CLAMD_PORT"] ?? Environment.GetEnvironmentVariable("CLAMD_PORT"), out var p) ? p : 3310;
@@ -36,15 +38,15 @@ public class FileScanHandler(
                 Size = file.Length,
                 ScanDurationMs = scanDuration.TotalMilliseconds
             }),
-            ClamScanResults.VirusDetected => Results.Ok(new ScanResponse
+            ClamScanResults.VirusDetected => Results.Json(new ScanResponse
             {
                 Status = "infected",
                 Engine = "clamav",
-                Malware = result.InfectedFiles.FirstOrDefault()?.VirusName ?? "unknown",
+                Malware = result.InfectedFiles?.FirstOrDefault()?.VirusName ?? "unknown",
                 FileName = file.FileName,
                 Size = file.Length,
                 ScanDurationMs = scanDuration.TotalMilliseconds
-            }),
+            }, statusCode: (int)HttpStatusCode.NotAcceptable),
             _ => Results.Problem($"Scan error: {result.RawResult}", statusCode: (int)HttpStatusCode.InternalServerError)
         };
     }
@@ -52,7 +54,9 @@ public class FileScanHandler(
     public async Task<IResult> HandleAsyncAsync(IFormFile file)
     {
         if (file == null || file.Length == 0)
+        {
             return Results.BadRequest(new ErrorResponse { Error = "Missing or empty file" });
+        }
 
         // Create job first
         var jobId = jobService.CreateJob(file.FileName, file.Length);

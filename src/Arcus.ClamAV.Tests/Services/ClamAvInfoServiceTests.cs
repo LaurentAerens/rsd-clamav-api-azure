@@ -10,7 +10,7 @@ public class ClamAvInfoServiceTests
     {
         // This test would require a running ClamAV instance
         // For now, we'll create a mock configuration and verify the service can be instantiated
-        
+
         // Arrange
         var configMock = new Mock<IConfiguration>();
         var section = new Mock<IConfigurationSection>();
@@ -21,7 +21,7 @@ public class ClamAvInfoServiceTests
         var service = new ClamAvInfoService(configMock.Object);
 
         // Assert
-        service.Should().NotBeNull();
+        service.ShouldNotBeNull();
     }
 }
 

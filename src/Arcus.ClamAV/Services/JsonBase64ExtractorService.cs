@@ -31,8 +31,8 @@ public partial class JsonBase64ExtractorService : IJsonBase64ExtractorService
             case JsonValueKind.Object:
                 foreach (var property in element.EnumerateObject())
                 {
-                    var propertyPath = string.IsNullOrEmpty(currentPath) 
-                        ? property.Name 
+                    var propertyPath = string.IsNullOrEmpty(currentPath)
+                        ? property.Name
                         : $"{currentPath}.{property.Name}";
                     ExtractRecursive(property.Value, propertyPath, extracts);
                 }
@@ -57,13 +57,13 @@ public partial class JsonBase64ExtractorService : IJsonBase64ExtractorService
                         // Remove whitespace and try to decode
                         var cleaned = stringValue.Trim().Replace("\r", "").Replace("\n", "").Replace(" ", "");
                         var decoded = Convert.FromBase64String(cleaned);
-                        
+
                         // Only consider it if decoded to reasonable size (avoid false positives)
                         if (decoded.Length >= 10)
                         {
-                            _logger.LogInformation("Found base64 content at path '{Path}': {OriginalSize} bytes → {DecodedSize} bytes", 
+                            _logger.LogInformation("Found base64 content at path '{Path}': {OriginalSize} bytes → {DecodedSize} bytes",
                                 currentPath, stringValue.Length, decoded.Length);
-                            
+
                             extracts.Add(new Base64Extract
                             {
                                 Path = currentPath,
@@ -89,14 +89,18 @@ public partial class JsonBase64ExtractorService : IJsonBase64ExtractorService
     {
         // Must be long enough
         if (value.Length < MinBase64Length)
+        {
             return false;
+        }
 
         // Remove whitespace
         var cleaned = value.Replace(" ", "").Replace("\r", "").Replace("\n", "").Replace("\t", "");
 
         // Must be valid base64 length (multiple of 4, or with padding)
         if (cleaned.Length % 4 != 0)
+        {
             return false;
+        }
 
         // Check if it's mostly base64 characters
         var base64Regex = Base64Pattern();

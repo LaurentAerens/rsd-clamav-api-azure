@@ -1,5 +1,6 @@
 using Arcus.ClamAV.Services;
 using Microsoft.Extensions.Logging;
+using Moq;
 
 namespace Arcus.ClamAV.Tests.Services;
 
@@ -7,11 +8,16 @@ public class BackgroundTaskQueueTests
 {
     private readonly BackgroundTaskQueue _queue;
     private readonly Mock<ILogger<BackgroundTaskQueue>> _loggerMock;
+    private readonly Mock<ITelemetryService> _telemetryServiceMock;
 
     public BackgroundTaskQueueTests()
     {
         _loggerMock = new Mock<ILogger<BackgroundTaskQueue>>();
-        _queue = new BackgroundTaskQueue(capacity: 10, logger: _loggerMock.Object);
+        _telemetryServiceMock = new Mock<ITelemetryService>();
+        _queue = new BackgroundTaskQueue(
+            capacity: 10,
+            logger: _loggerMock.Object,
+            telemetryService: _telemetryServiceMock.Object);
     }
 
     [Fact]
@@ -29,7 +35,7 @@ public class BackgroundTaskQueueTests
         await _queue.EnqueueTask(TestTask);
 
         // Assert
-        taskExecuted.Should().BeFalse(); // Task hasn't executed yet, just queued
+        taskExecuted.ShouldBeFalse(); // Task hasn't executed yet, just queued
     }
 
     [Fact]
@@ -50,8 +56,11 @@ public class BackgroundTaskQueueTests
         var dequeuedTask = await _queue.DequeueAsync(CancellationToken.None);
 
         // Assert
-        dequeuedTask.Should().NotBeNull();
-        dequeuedTask.Should().Be(TestTask);
+        dequeuedTask.ShouldNotBeNull();
+        // Verify the same delegate instance is returned (intentional method group comparison)
+#pragma warning disable CS8974 // Converting method group to non-delegate type
+        dequeuedTask.ShouldBe(TestTask);
+#pragma warning restore CS8974
     }
 
     [Fact]
@@ -65,7 +74,7 @@ public class BackgroundTaskQueueTests
         var dequeuedTask = await _queue.DequeueAsync(cts.Token);
 
         // Assert
-        dequeuedTask.Should().BeNull();
+        dequeuedTask.ShouldBeNull();
     }
 
     [Fact]
@@ -90,7 +99,7 @@ public class BackgroundTaskQueueTests
         for (int i = 0; i < 5; i++)
         {
             var dequeuedTask = await _queue.DequeueAsync(CancellationToken.None);
-            dequeuedTask.Should().NotBeNull();
+            dequeuedTask.ShouldNotBeNull();
         }
     }
 }

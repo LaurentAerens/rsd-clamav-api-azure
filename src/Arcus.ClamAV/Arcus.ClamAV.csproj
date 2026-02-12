@@ -8,6 +8,7 @@
 	<ItemGroup>
 		<PackageReference Include="Asp.Versioning.Http" Version="8.1.0" />
 		<PackageReference Include="Asp.Versioning.Mvc.ApiExplorer" Version="8.1.0" />
+		<PackageReference Include="Microsoft.ApplicationInsights.AspNetCore" Version="2.22.0" />
 		<PackageReference Include="NClam" Version="7.0.0" />
 		<PackageReference Include="NSwag.AspNetCore" Version="14.3.0" />
 		<PackageReference Include="NSwag.MSBuild" Version="14.3.0">
