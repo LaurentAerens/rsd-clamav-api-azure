@@ -40,7 +40,7 @@ public class QueuedHostedService : BackgroundService
 
         // Wait for all workers to complete
         await Task.WhenAll(workers);
-        
+
         _logger.LogInformation("QueuedHostedService has stopped");
     }
 
@@ -54,17 +54,19 @@ public class QueuedHostedService : BackgroundService
             try
             {
                 var workItem = await _taskQueue.DequeueAsync(stoppingToken);
-                
+
                 if (workItem == null)
+                {
                     continue;
+                }
 
                 _logger.LogDebug("Worker {WorkerId} processing task", workerId);
-                
+
                 // Track worker utilization before processing
                 _telemetryService.TrackWorkerUtilization(activeWorkers, _maxConcurrentWorkers);
 
                 var success = await workItem(stoppingToken);
-                
+
                 _logger.LogDebug(
                     "Worker {WorkerId} completed task with status: {Status}",
                     workerId,

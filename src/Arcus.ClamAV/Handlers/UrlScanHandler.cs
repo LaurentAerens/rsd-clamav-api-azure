@@ -27,7 +27,9 @@ public class UrlScanHandler
     public async Task<IResult> HandleAsync(ScanUrlRequest urlRequest)
     {
         if (string.IsNullOrWhiteSpace(urlRequest.Url))
+        {
             return Results.BadRequest(new ErrorResponse { Error = "URL is required" });
+        }
 
         var fileUrl = urlRequest.Url;
 

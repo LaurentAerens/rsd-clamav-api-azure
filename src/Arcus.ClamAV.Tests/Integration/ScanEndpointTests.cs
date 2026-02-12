@@ -87,7 +87,7 @@ public class ScanEndpointTests : IAsyncLifetime
         var scanRequest = new ScanUrlRequest { Url = "https://example.com/file.zip", IsBase64 = false };
 
         _factory.ScanProcessingServiceMock
-            .Setup(s => s.ProcessUrlScanAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(), 
+            .Setup(s => s.ProcessUrlScanAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(),
                 It.IsAny<long>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(true);
 

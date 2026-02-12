@@ -27,13 +27,17 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
             var clamAvInfoDescriptor = services.SingleOrDefault(
                 d => d.ServiceType == typeof(IClamAvInfoService));
             if (clamAvInfoDescriptor != null)
+            {
                 services.Remove(clamAvInfoDescriptor);
+            }
 
             // Remove the real ScanProcessingService
             var scanProcessingDescriptor = services.SingleOrDefault(
                 d => d.ServiceType == typeof(IScanProcessingService));
             if (scanProcessingDescriptor != null)
+            {
                 services.Remove(scanProcessingDescriptor);
+            }
 
             // Add mocks
             services.AddSingleton(_clamAvInfoServiceMock.Object);

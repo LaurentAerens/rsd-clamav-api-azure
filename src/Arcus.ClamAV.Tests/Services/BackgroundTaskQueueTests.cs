@@ -15,7 +15,7 @@ public class BackgroundTaskQueueTests
         _loggerMock = new Mock<ILogger<BackgroundTaskQueue>>();
         _telemetryServiceMock = new Mock<ITelemetryService>();
         _queue = new BackgroundTaskQueue(
-            capacity: 10, 
+            capacity: 10,
             logger: _loggerMock.Object,
             telemetryService: _telemetryServiceMock.Object);
     }

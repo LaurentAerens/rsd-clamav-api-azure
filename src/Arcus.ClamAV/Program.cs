@@ -15,7 +15,7 @@ builder.Configuration
     .AddCommandLine(args);
 
 // Configure Application Insights telemetry (only if connection string provided)
-var appInsightsConnectionString = builder.Configuration["APPLICATIONINSIGHTS_CONNECTION_STRING"] 
+var appInsightsConnectionString = builder.Configuration["APPLICATIONINSIGHTS_CONNECTION_STRING"]
                                    ?? builder.Configuration["ApplicationInsights:ConnectionString"];
 if (!string.IsNullOrWhiteSpace(appInsightsConnectionString))
 {
@@ -26,7 +26,7 @@ if (!string.IsNullOrWhiteSpace(appInsightsConnectionString))
         options.EnablePerformanceCounterCollectionModule = true;
         options.EnableDependencyTrackingTelemetryModule = true;
     });
-    
+
     builder.Logging.AddApplicationInsights();
 }
 

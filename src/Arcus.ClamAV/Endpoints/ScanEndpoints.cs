@@ -12,7 +12,7 @@ public static class ScanEndpoints
             .WithTags("Scan");
 
         // Synchronous scan
-        scanGroup.MapPost("", async (IFormFile file, FileScanHandler handler) => 
+        scanGroup.MapPost("", async (IFormFile file, FileScanHandler handler) =>
             await handler.HandleSyncAsync(file))
             .Accepts<IFormFile>("multipart/form-data")
             .Produces<ScanResponse>(200)
@@ -24,7 +24,7 @@ public static class ScanEndpoints
             .DisableAntiforgery();
 
         // Asynchronous file upload scan
-        scanGroup.MapPost("/async", async (IFormFile file, FileScanHandler handler) => 
+        scanGroup.MapPost("/async", async (IFormFile file, FileScanHandler handler) =>
             await handler.HandleAsyncAsync(file))
             .Accepts<IFormFile>("multipart/form-data")
             .Produces<AsyncScanResponse>(202)
@@ -34,7 +34,7 @@ public static class ScanEndpoints
             .DisableAntiforgery();
 
         // Asynchronous URL scan
-        scanGroup.MapPost("/async/url", async (ScanUrlRequest urlRequest, UrlScanHandler handler) => 
+        scanGroup.MapPost("/async/url", async (ScanUrlRequest urlRequest, UrlScanHandler handler) =>
             await handler.HandleAsync(urlRequest))
             .Accepts<ScanUrlRequest>("application/json")
             .Produces<AsyncScanResponse>(202)
@@ -57,7 +57,9 @@ public static class ScanEndpoints
         {
             var job = jobService.GetJob(jobId);
             if (job == null)
+            {
                 return Results.NotFound(new ErrorResponse { Error = "Job not found" });
+            }
 
             return Results.Ok(new ScanStatusResponse
             {

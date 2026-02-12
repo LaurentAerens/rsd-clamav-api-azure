@@ -15,25 +15,27 @@ public class BackgroundTaskQueue : IBackgroundTaskQueue
     {
         _logger = logger;
         _telemetryService = telemetryService;
-        
+
         var options = new BoundedChannelOptions(capacity)
         {
             FullMode = BoundedChannelFullMode.Wait
         };
-        
+
         _queue = Channel.CreateBounded<Func<CancellationToken, Task<bool>>>(options);
-        
+
         _logger.LogInformation("BackgroundTaskQueue initialized with capacity: {Capacity}", capacity);
     }
 
     public async Task EnqueueTask(Func<CancellationToken, Task<bool>> taskFunc)
     {
         if (taskFunc == null)
+        {
             throw new ArgumentNullException(nameof(taskFunc));
+        }
 
         await _queue.Writer.WriteAsync(taskFunc);
         _logger.LogDebug("Task enqueued successfully");
-        
+
         // Track queue depth when task is enqueued
         _telemetryService.TrackQueueDepth(_queue.Reader.Count);
     }

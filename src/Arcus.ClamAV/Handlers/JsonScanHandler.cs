@@ -39,7 +39,7 @@ public class JsonScanHandler(
             {
                 using var memoryStream = new MemoryStream(item.DecodedContent);
                 clam.MaxStreamSize = item.DecodedContent.Length;
-                
+
                 var scanResult = await clam.SendAndScanFileAsync(memoryStream);
                 result.ItemsScanned++;
 
@@ -58,7 +58,7 @@ public class JsonScanHandler(
                     result.Status = "infected";
                     result.Malware = virusName;
                     result.InfectedItem = item.Path;
-                    
+
                     logger.LogWarning("Malware detected in base64 property '{Path}': {Virus}", item.Path, virusName);
                 }
 
@@ -66,7 +66,9 @@ public class JsonScanHandler(
 
                 // Stop scanning if we found malware
                 if (result.Status == "infected")
+                {
                     break;
+                }
             }
 
             // 3. Also scan the full JSON as text (only if nothing infected yet)
@@ -74,10 +76,10 @@ public class JsonScanHandler(
             {
                 var jsonText = JsonSerializer.Serialize(request.Payload);
                 var jsonBytes = Encoding.UTF8.GetBytes(jsonText);
-                
+
                 using var jsonStream = new MemoryStream(jsonBytes);
                 clam.MaxStreamSize = jsonBytes.Length;
-                
+
                 var scanResult = await clam.SendAndScanFileAsync(jsonStream);
                 result.ItemsScanned++;
 
@@ -96,7 +98,7 @@ public class JsonScanHandler(
                     result.Status = "infected";
                     result.Malware = virusName;
                     result.InfectedItem = "json_payload";
-                    
+
                     logger.LogWarning("Malware detected in JSON payload text: {Virus}", virusName);
                 }
 
@@ -104,8 +106,8 @@ public class JsonScanHandler(
             }
 
             result.ScanDurationMs = (DateTime.UtcNow - startTime).TotalMilliseconds;
-            return result.Status == "infected" 
-                ? Results.Json(result, statusCode: 406) 
+            return result.Status == "infected"
+                ? Results.Json(result, statusCode: 406)
                 : Results.Ok(result);
         }
         catch (Exception ex)

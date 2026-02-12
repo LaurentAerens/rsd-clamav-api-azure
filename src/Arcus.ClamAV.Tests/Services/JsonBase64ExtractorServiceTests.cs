@@ -42,7 +42,7 @@ public class JsonBase64ExtractorServiceTests
         var content2 = new byte[200];
         Random.Shared.NextBytes(content1);
         Random.Shared.NextBytes(content2);
-        
+
         var json = JsonSerializer.Serialize(new
         {
             file1 = Convert.ToBase64String(content1),
@@ -65,7 +65,7 @@ public class JsonBase64ExtractorServiceTests
         // Arrange
         var content = new byte[200];
         Random.Shared.NextBytes(content);
-        
+
         var json = JsonSerializer.Serialize(new
         {
             envelope = new
@@ -94,7 +94,7 @@ public class JsonBase64ExtractorServiceTests
         var content2 = new byte[200];
         Random.Shared.NextBytes(content1);
         Random.Shared.NextBytes(content2);
-        
+
         var json = JsonSerializer.Serialize(new
         {
             attachments = new[]
@@ -163,7 +163,7 @@ public class JsonBase64ExtractorServiceTests
         // Arrange
         var content = new byte[200];
         Random.Shared.NextBytes(content);
-        
+
         var json = JsonSerializer.Serialize(new
         {
             id = "12345",

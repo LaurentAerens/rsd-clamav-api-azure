@@ -30,9 +30,9 @@ public class ScanJobService(ILogger<ScanJobService> logger) : IScanJobService
         };
 
         _jobs[jobId] = job;
-        logger.LogInformation("Created scan job {JobId} for file {FileName} ({FileSize} bytes)", 
+        logger.LogInformation("Created scan job {JobId} for file {FileName} ({FileSize} bytes)",
             jobId, fileName, fileSize);
-        
+
         return jobId;
     }
 
@@ -47,9 +47,15 @@ public class ScanJobService(ILogger<ScanJobService> logger) : IScanJobService
         if (_jobs.TryGetValue(jobId, out var job))
         {
             job.Status = status;
-            if (malware != null) job.Malware = malware;
-            if (error != null) job.Error = error;
-            
+            if (malware != null)
+            {
+                job.Malware = malware;
+            }
+            if (error != null)
+            {
+                job.Error = error;
+            }
+
             logger.LogInformation("Updated scan job {JobId} to status {Status}", jobId, status);
         }
     }
@@ -59,7 +65,7 @@ public class ScanJobService(ILogger<ScanJobService> logger) : IScanJobService
         if (_jobs.TryGetValue(jobId, out var job))
         {
             job.CompletedAt = DateTime.UtcNow;
-            logger.LogInformation("Completed scan job {JobId} in {Duration}ms", 
+            logger.LogInformation("Completed scan job {JobId} in {Duration}ms",
                 jobId, job.ScanDuration?.TotalMilliseconds ?? 0);
         }
     }
@@ -68,7 +74,7 @@ public class ScanJobService(ILogger<ScanJobService> logger) : IScanJobService
     {
         var cutoff = DateTime.UtcNow - maxAge;
         var oldJobs = _jobs.Where(kvp => kvp.Value.CreatedAt < cutoff).Select(kvp => kvp.Key).ToList();
-        
+
         foreach (var jobId in oldJobs)
         {
             if (_jobs.TryRemove(jobId, out _))
@@ -76,7 +82,7 @@ public class ScanJobService(ILogger<ScanJobService> logger) : IScanJobService
                 logger.LogDebug("Cleaned up old scan job {JobId}", jobId);
             }
         }
-        
+
         if (oldJobs.Count > 0)
         {
             logger.LogInformation("Cleaned up {Count} old scan jobs", oldJobs.Count);

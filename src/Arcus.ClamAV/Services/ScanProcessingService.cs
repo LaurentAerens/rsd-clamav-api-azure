@@ -22,9 +22,9 @@ public class ScanProcessingService(
 
             if (scanResult.IsSuccess)
             {
-                jobService.UpdateJobStatus(jobId, scanResult.IsClean ? "clean" : "infected", 
+                jobService.UpdateJobStatus(jobId, scanResult.IsClean ? "clean" : "infected",
                     malware: scanResult.MalwareName);
-                
+
                 // Track telemetry for completed scan
                 stopwatch.Stop();
                 var fileInfo = new FileInfo(tempFilePath);
@@ -33,13 +33,13 @@ public class ScanProcessingService(
                     scanResult.IsClean,
                     fileInfo.Exists ? fileInfo.Length : 0,
                     "file");
-                
+
                 if (!scanResult.IsClean && scanResult.MalwareName != null)
                 {
                     telemetryService.TrackMalwareDetected(scanResult.MalwareName, Path.GetFileName(tempFilePath), "file");
                 }
-                
-                logger.LogInformation("Job {JobId} scan complete: {Status}", jobId, 
+
+                logger.LogInformation("Job {JobId} scan complete: {Status}", jobId,
                     scanResult.IsClean ? "Clean" : $"Infected with {scanResult.MalwareName}");
             }
             else
@@ -164,7 +164,9 @@ public class ScanProcessingService(
                     try
                     {
                         if (File.Exists(tempFilePath))
+                        {
                             File.Delete(tempFilePath);
+                        }
                     }
                     catch (Exception deleteEx)
                     {

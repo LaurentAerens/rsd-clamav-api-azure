@@ -19,9 +19,9 @@ public class QueuedHostedServiceTests
         configMock.Setup(c => c["BackgroundProcessing:MaxConcurrentWorkers"]).Returns("1");
 
         var service = new QueuedHostedService(
-            taskQueueMock.Object, 
+            taskQueueMock.Object,
             telemetryServiceMock.Object,
-            loggerMock.Object, 
+            loggerMock.Object,
             configMock.Object);
 
         // Setup the queue to return null (to stop the service)
@@ -51,9 +51,9 @@ public class QueuedHostedServiceTests
         configMock.Setup(c => c["BackgroundProcessing:MaxConcurrentWorkers"]).Returns("4");
 
         var service = new QueuedHostedService(
-            taskQueueMock.Object, 
+            taskQueueMock.Object,
             telemetryServiceMock.Object,
-            loggerMock.Object, 
+            loggerMock.Object,
             configMock.Object);
 
         taskQueueMock.Setup(q => q.DequeueAsync(It.IsAny<CancellationToken>()))

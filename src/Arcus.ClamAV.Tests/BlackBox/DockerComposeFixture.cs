@@ -11,7 +11,7 @@ public class DockerComposeFixture : IDisposable
     private readonly string _workspaceRoot;
     private readonly string _baseUrl;
     private readonly HttpClient _httpClient;
-    private readonly bool _containersStarted; 
+    private readonly bool _containersStarted;
 
     public string BaseUrl => _baseUrl;
 

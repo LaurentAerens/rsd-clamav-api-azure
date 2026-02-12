@@ -11,7 +11,7 @@ public class JobCleanupService(
     public Task StartAsync(CancellationToken cancellationToken)
     {
         logger.LogInformation("Job Cleanup Service is starting");
-        
+
         // Run cleanup every 10 minutes
         _timer = new Timer(
             callback: _ => ScheduleCleanup(),
