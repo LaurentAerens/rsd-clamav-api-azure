@@ -17,6 +17,19 @@ public class ScanJobService(ILogger<ScanJobService> logger) : IScanJobService
 {
     private readonly ConcurrentDictionary<string, ScanJob> _jobs = new();
 
+    private static string SanitizeForLog(string? value)
+    {
+        if (string.IsNullOrEmpty(value))
+        {
+            return string.Empty;
+        }
+
+        // Remove CR/LF to prevent log forging via injected line breaks
+        return value
+            .Replace("\r", string.Empty)
+            .Replace("\n", string.Empty);
+    }
+
     public string CreateJob(string fileName, long fileSize)
     {
         var jobId = Guid.NewGuid().ToString();
@@ -33,7 +46,7 @@ public class ScanJobService(ILogger<ScanJobService> logger) : IScanJobService
 
         var displayFileName = fileName is null
             ? "unknown"
-            : fileName.Substring(0, Math.Min(100, fileName.Length));
+            : SanitizeForLog(fileName.Substring(0, Math.Min(100, fileName.Length)));
 
         logger.LogInformation("Created scan job {JobId} for file {FileName} ({FileSize} bytes)",
             jobId, displayFileName, fileSize);
