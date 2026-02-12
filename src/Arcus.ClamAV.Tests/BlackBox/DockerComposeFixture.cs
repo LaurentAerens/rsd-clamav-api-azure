@@ -153,8 +153,8 @@ public class DockerComposeFixture : IDisposable
         {
             StartInfo = new ProcessStartInfo
             {
-                FileName = "docker-compose",
-                Arguments = arguments,
+                FileName = "docker",
+                Arguments = $"compose {arguments}",
                 WorkingDirectory = _workspaceRoot,
                 RedirectStandardOutput = captureOutput,
                 RedirectStandardError = captureOutput,
