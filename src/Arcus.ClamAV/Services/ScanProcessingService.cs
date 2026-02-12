@@ -43,14 +43,16 @@ public class ScanProcessingService(
                     scanResult.IsClean ? "Clean" : "Infected");
                 if (!scanResult.IsClean && scanResult.MalwareName != null)
                 {
-                    logger.LogInformation("Job {JobId} malware detected: {MalwareName}", jobId, scanResult.MalwareName);
+                    var displayMalwareName = scanResult.MalwareName is null ? "unknown" : scanResult.MalwareName;
+                    logger.LogInformation("Job {JobId} malware detected: {MalwareName}", jobId, displayMalwareName);
                 }
             }
             else
             {
                 jobService.UpdateJobStatus(jobId, "error", error: scanResult.Error);
                 telemetryService.TrackScanFailed(scanResult.Error ?? "Unknown error", "file");
-                logger.LogError("Job {JobId} scan error: {Error}", jobId, scanResult.Error);
+                var errorMessage = scanResult.Error is null ? "Unknown error" : scanResult.Error;
+                logger.LogError("Job {JobId} scan error: {Error}", jobId, errorMessage);
             }
 
             jobService.CompleteJob(jobId);
@@ -174,7 +176,7 @@ public class ScanProcessingService(
                     }
                     catch (Exception deleteEx)
                     {
-                        logger.LogWarning(deleteEx, "Failed to delete temp file {Path}", tempFilePath);
+                        logger.LogWarning(deleteEx, "Failed to delete temp file");
                     }
 
                     jobService.UpdateJobStatus(jobId, "error",
@@ -258,7 +260,7 @@ public class ScanProcessingService(
         }
         catch (Exception ex)
         {
-            logger.LogWarning(ex, "Failed to delete temp file {Path}", tempFilePath);
+            logger.LogWarning(ex, "Failed to delete temp file");
         }
     }
 

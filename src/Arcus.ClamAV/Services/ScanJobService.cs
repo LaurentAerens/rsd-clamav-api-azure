@@ -30,8 +30,13 @@ public class ScanJobService(ILogger<ScanJobService> logger) : IScanJobService
         };
 
         _jobs[jobId] = job;
+
+        var displayFileName = fileName is null
+            ? "unknown"
+            : fileName.Substring(0, Math.Min(100, fileName.Length));
+
         logger.LogInformation("Created scan job {JobId} for file {FileName} ({FileSize} bytes)",
-            jobId, fileName?.Substring(0, Math.Min(100, fileName?.Length ?? 0)) ?? "unknown", fileSize);
+            jobId, displayFileName, fileSize);
 
         return jobId;
     }
