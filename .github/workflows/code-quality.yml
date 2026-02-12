@@ -76,6 +76,8 @@ jobs:
               --config=p/csharp \
               --config=p/owasp-top-ten \
               --config=p/security-audit \
+              --config=p/secrets \
+              --config=p/cwe-top-25 \
               --sarif --output=/src/semgrep-results.sarif || true
 
       - name: Upload Semgrep Results
