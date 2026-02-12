@@ -5,3 +5,6 @@ queries:
     # Disable empty catch block warnings
     disable:
       - cs/empty-catch-block
+
+paths-ignore:
+  - '**/Generated/**'

@@ -76,12 +76,12 @@ jobs:
               --config=p/csharp \
               --config=p/owasp-top-ten \
               --config=p/security-audit \
-              --json --output=/src/semgrep-results.json || true
+              --sarif --output=/src/semgrep-results.sarif || true
 
       - name: Upload Semgrep Results
         uses: github/codeql-action/upload-sarif@v4
         with:
-          sarif_file: semgrep-results.json
+          sarif_file: semgrep-results.sarif
         if: always()
 
   stylecopanalyzer:
