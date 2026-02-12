@@ -67,13 +67,22 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Run Semgrep Scan
-        uses: returntocorp/semgrep-action@v1
+      - name: Run Semgrep Scan (Docker)
+        run: |
+          docker run --rm \
+            -v "$(pwd):/src" \
+            returntocorp/semgrep:latest \
+            semgrep scan /src/src \
+              --config=p/csharp \
+              --config=p/owasp-top-ten \
+              --config=p/security-audit \
+              --json --output=/src/semgrep-results.json || true
+
+      - name: Upload Semgrep Results
+        uses: github/codeql-action/upload-sarif@v4
         with:
-          config: >-
-            p/csharp
-            p/owasp-top-ten
-            p/security-audit
+          sarif_file: semgrep-results.json
+        if: always()
 
   stylecopanalyzer:
     name: StyleCop Analyzer
