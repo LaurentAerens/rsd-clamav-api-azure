@@ -26,6 +26,8 @@ jobs:
     permissions:
       packages: read
       contents: read
+      checks: write
+      pull-requests: write
     steps:
     - uses: actions/checkout@v4
       with:
@@ -45,11 +47,13 @@ jobs:
         PROJECT_PATH: ${{ inputs.project_path }}
       run: dotnet build --no-restore --configuration Release -p:CI="$CI" "$PROJECT_PATH"
 
+    - name: Build Docker Image
+      run: docker compose build
+
     - name: Run Tests
       if: ${{ inputs.run_tests }}
       run: |
         dotnet test src/Arcus.ClamAV.Tests/bin/Release/net10.0/Arcus.ClamAV.Tests.dll \
-          --filter "Category!=BlackBox" \
           --verbosity normal \
           --logger "trx;LogFileName=test-results.trx" \
           --collect:"XPlat Code Coverage"
