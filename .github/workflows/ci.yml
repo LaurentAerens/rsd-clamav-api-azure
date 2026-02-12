@@ -21,7 +21,7 @@ jobs:
     uses: ./.github/workflows/build-test-template.yml
     with:
       project_name: ClamAV.Api
-      project_path: src/Arcus.ClamAV
+      project_path: src/Arcus.ClamAV.sln
       run_tests: true
 
   # Quality Gates Summary
