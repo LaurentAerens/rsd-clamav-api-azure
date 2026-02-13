@@ -59,9 +59,9 @@ jobs:
             exit 1
           fi
           
-          # Only allow alpha/beta from main branch
-          if [[ "$RELEASE_TYPE" != "stable" ]] && [[ "$CURRENT_BRANCH" != "main" ]]; then
-            echo "❌ Alpha and beta releases can only be created from main branch"
+          # Only allow stable releases from main branch
+          if [[ "$RELEASE_TYPE" == "stable" ]] && [[ "$CURRENT_BRANCH" != "main" ]]; then
+            echo "❌ Stable releases can only be created from main branch"
             echo "Current branch: $CURRENT_BRANCH"
             exit 1
           fi
