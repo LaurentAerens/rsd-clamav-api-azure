@@ -22,12 +22,7 @@ if (!string.IsNullOrWhiteSpace(appInsightsConnectionString))
     builder.Services.AddApplicationInsightsTelemetry(options =>
     {
         options.ConnectionString = appInsightsConnectionString;
-        options.EnableAdaptiveSampling = true;
-        options.EnablePerformanceCounterCollectionModule = true;
-        options.EnableDependencyTrackingTelemetryModule = true;
     });
-
-    builder.Logging.AddApplicationInsights();
 }
 
 var maxFileSizeMb = int.TryParse(Environment.GetEnvironmentVariable("MAX_FILE_SIZE_MB"), out var m) ? m : 200;
