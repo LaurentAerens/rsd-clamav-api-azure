@@ -25,6 +25,8 @@ permissions:
   contents: write
   packages: write
   id-token: write
+  checks: write
+  pull-requests: write
 
 jobs:
   # Test the code before releasing
@@ -45,7 +47,7 @@ jobs:
 
     steps:
       - name: Checkout Code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           fetch-depth: 0
 
@@ -57,9 +59,9 @@ jobs:
             exit 1
           fi
           
-          # Only allow alpha/beta from main branch
-          if [[ "$RELEASE_TYPE" != "stable" ]] && [[ "$CURRENT_BRANCH" != "main" ]]; then
-            echo "❌ Alpha and beta releases can only be created from main branch"
+          # Only allow stable releases from main branch
+          if [[ "$RELEASE_TYPE" == "stable" ]] && [[ "$CURRENT_BRANCH" != "main" ]]; then
+            echo "❌ Stable releases can only be created from main branch"
             echo "Current branch: $CURRENT_BRANCH"
             exit 1
           fi
@@ -184,7 +186,7 @@ jobs:
 
       - name: Create GitHub Release
         if: github.event.inputs.create_release == 'true'
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ env.GIT_TAG }}
           body_path: ${{ steps.release_notes.outputs.release_notes_file }}
