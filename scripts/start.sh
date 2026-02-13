@@ -4,13 +4,21 @@ set -euo pipefail
 # Optional delay before first update (useful in constrained networks)
 : "${FRESHCLAM_DELAY_SECS:=0}"
 
-# Update CA bundle (sometimes needed on slim images)
-update-ca-certificates || true
+# Update CA bundle (skip if not root, already done at build time)
+if [[ $EUID -eq 0 ]]; then
+  update-ca-certificates || true
+else
+  echo "[start.sh] Running as non-root, skipping CA certificate update"
+fi
 
-# Ensure required directories and permissions
-mkdir -p /var/lib/clamav /var/log/clamav
-chown -R clamav:clamav /var/lib/clamav /var/log/clamav
-chmod 755 /var/lib/clamav /var/log/clamav
+# Ensure required directories exist (may fail if not root, that's ok)
+mkdir -p /var/lib/clamav /var/log/clamav 2>/dev/null || true
+
+# Try to fix permissions if root, skip otherwise
+if [[ $EUID -eq 0 ]]; then
+  chown -R clamav:clamav /var/lib/clamav /var/log/clamav
+  chmod 755 /var/lib/clamav /var/log/clamav
+fi
 
 # Optional delay before initial DB update
 if [[ "${FRESHCLAM_DELAY_SECS}" -gt 0 ]]; then
@@ -20,11 +28,19 @@ fi
 
 # Run one foreground update to ensure databases exist
 echo "[start.sh] Running initial freshclam update..."
-su -s /bin/sh -c 'freshclam --stdout --verbose' clamav || true
+if [[ $EUID -eq 0 ]]; then
+  su -s /bin/sh -c 'freshclam --stdout --verbose' clamav || true
+else
+  sudo -u clamav freshclam --stdout --verbose || true
+fi
 
 # Start clamd in the foreground
 echo "[start.sh] Starting clamd..."
-su -s /bin/sh -c 'clamd --foreground=true --config-file=/etc/clamav/clamd.conf' clamav &
+if [[ $EUID -eq 0 ]]; then
+  su -s /bin/sh -c 'clamd --foreground=true --config-file=/etc/clamav/clamd.conf' clamav &
+else
+  sudo -u clamav clamd --foreground=true --config-file=/etc/clamav/clamd.conf &
+fi
 CLAMD_PID=$!
 
 # Wait for clamd TCP socket to become ready

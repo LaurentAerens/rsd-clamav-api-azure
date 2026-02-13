@@ -1,0 +1,220 @@
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version number (e.g., 1.0.0)"
+        required: true
+        type: string
+      release_type:
+        description: "Release type"
+        required: true
+        type: choice
+        options:
+          - stable
+          - alpha
+          - beta
+      create_release:
+        description: "Create GitHub Release"
+        required: false
+        type: boolean
+        default: true
+
+permissions:
+  contents: write
+  packages: write
+  id-token: write
+
+jobs:
+  # Test the code before releasing
+  build-and-test:
+    name: Build & Test
+    uses: ./.github/workflows/build-test-template.yml
+    with:
+      project_name: ClamAV.Api
+      project_path: src/Arcus.ClamAV.sln
+      run_tests: true
+
+  # Validate and release after tests pass
+  validate-and-release:
+    name: Validate & Release
+    runs-on: ubuntu-latest
+    needs: [build-and-test]
+    if: needs.build-and-test.result == 'success'
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Validate Release Rules
+        run: |
+          # Validate version format
+          if ! [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "❌ Invalid version format. Use semver (e.g., 1.0.0)"
+            exit 1
+          fi
+          
+          # Only allow alpha/beta from main branch
+          if [[ "$RELEASE_TYPE" != "stable" ]] && [[ "$CURRENT_BRANCH" != "main" ]]; then
+            echo "❌ Alpha and beta releases can only be created from main branch"
+            echo "Current branch: $CURRENT_BRANCH"
+            exit 1
+          fi
+          
+          echo "✅ Release validation passed"
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+          echo "RELEASE_TYPE=$RELEASE_TYPE" >> "$GITHUB_ENV"
+        env:
+          VERSION: ${{ github.event.inputs.version }}
+          RELEASE_TYPE: ${{ github.event.inputs.release_type }}
+          CURRENT_BRANCH: ${{ github.ref_name }}
+
+      - name: Build Docker Image Tag
+        run: |
+          if [[ "$RELEASE_TYPE" == "stable" ]]; then
+            DOCKER_TAG="$VERSION"
+            TAGS_LIST="$REGISTRY_USERNAME/clamav-api:$VERSION,$REGISTRY_USERNAME/clamav-api:latest"
+          else
+            DOCKER_TAG="$VERSION-$RELEASE_TYPE"
+            TAGS_LIST="$REGISTRY_USERNAME/clamav-api:$VERSION-$RELEASE_TYPE"
+          fi
+          
+          echo "DOCKER_TAG=$DOCKER_TAG" >> "$GITHUB_ENV"
+          echo "IMAGE_TAGS=$TAGS_LIST" >> "$GITHUB_ENV"
+          echo "Release will be tagged as: $DOCKER_TAG"
+        env:
+          VERSION: ${{ github.event.inputs.version }}
+          RELEASE_TYPE: ${{ github.event.inputs.release_type }}
+          REGISTRY_USERNAME: ${{ secrets.DOCKER_REGISTRY_USERNAME }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_REGISTRY_USERNAME }}
+          password: ${{ secrets.DOCKER_REGISTRY_PASSWORD }}
+
+      - name: Build and Push Docker Image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: ${{ env.IMAGE_TAGS }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          build-args: |
+            CI=true
+
+      - name: Create Git Tag
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          
+          GIT_TAG="v$DOCKER_TAG"
+          git tag -a "$GIT_TAG" -m "Release $DOCKER_TAG"
+          git push origin "$GIT_TAG"
+          
+          echo "GIT_TAG=$GIT_TAG" >> "$GITHUB_ENV"
+        env:
+          DOCKER_TAG: ${{ env.DOCKER_TAG }}
+
+      - name: Generate Release Notes
+        id: release_notes
+        run: |
+          PREVIOUS_TAG=$(git describe --tags --abbrev=0 --exclude="v$VERSION" 2>/dev/null || echo "")
+          
+          RELEASE_NOTES="## 🚀 Release: \`$VERSION\`"
+          RELEASE_NOTES+=$'\n\n'
+          
+          if [[ "$RELEASE_TYPE" != "stable" ]]; then
+            RELEASE_NOTES+="⚠️ **This is a $RELEASE_TYPE release** - Use with caution in production environments."
+            RELEASE_NOTES+=$'\n\n'
+          fi
+          
+          RELEASE_NOTES+="### Docker Image"
+          RELEASE_NOTES+=$'\n'
+          RELEASE_NOTES+="**Pull this release:**"
+          RELEASE_NOTES+=$'\n'
+          RELEASE_NOTES+="\`\`\`bash"
+          RELEASE_NOTES+=$'\n'
+          RELEASE_NOTES+="docker pull $REGISTRY_USERNAME/clamav-api:$VERSION"
+          RELEASE_NOTES+=$'\n'
+          RELEASE_NOTES+="\`\`\`"
+          RELEASE_NOTES+=$'\n\n'
+          
+          if [[ -n "$PREVIOUS_TAG" ]]; then
+            RELEASE_NOTES+="### Changes Since $PREVIOUS_TAG"
+            RELEASE_NOTES+=$'\n'
+            RELEASE_NOTES+="**Commits:**"
+            RELEASE_NOTES+=$'\n'
+            RELEASE_NOTES+=$'\n'
+            
+            git log "$PREVIOUS_TAG..HEAD" --pretty=format:"- %h: %s (%an)" >> /tmp/commits.txt 2>/dev/null
+            if [[ -f /tmp/commits.txt ]]; then
+              RELEASE_NOTES+=$(cat /tmp/commits.txt)
+              RELEASE_NOTES+=$'\n\n'
+            fi
+          else
+            RELEASE_NOTES+="### Initial Release"
+            RELEASE_NOTES+=$'\n'
+            RELEASE_NOTES+="This is the first tagged release."
+            RELEASE_NOTES+=$'\n\n'
+          fi
+          
+          RELEASE_NOTES+="---"
+          RELEASE_NOTES+=$'\n'
+          RELEASE_NOTES+="**Built at:** \`$(date -u +'%Y-%m-%dT%H:%M:%SZ')\`"
+          RELEASE_NOTES+=$'\n'
+          RELEASE_NOTES+="**Commit:** [\`$(git rev-parse --short HEAD)\`]($SERVER_URL/$REPOSITORY/commit/$(git rev-parse HEAD))"
+          
+          # Save to file to handle multi-line content
+          echo "$RELEASE_NOTES" > /tmp/release_notes.txt
+          echo "release_notes_file=/tmp/release_notes.txt" >> "$GITHUB_OUTPUT"
+        env:
+          VERSION: ${{ env.DOCKER_TAG }}
+          RELEASE_TYPE: ${{ github.event.inputs.release_type }}
+          REGISTRY_USERNAME: ${{ secrets.DOCKER_REGISTRY_USERNAME }}
+          SERVER_URL: ${{ github.server_url }}
+          REPOSITORY: ${{ github.repository }}
+
+      - name: Create GitHub Release
+        if: github.event.inputs.create_release == 'true'
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ env.GIT_TAG }}
+          body_path: ${{ steps.release_notes.outputs.release_notes_file }}
+          prerelease: ${{ github.event.inputs.release_type != 'stable' }}
+          draft: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Release Summary
+        run: |
+          echo "## ✅ Release Complete"
+          echo ""
+          echo "**Version:** \`$DOCKER_TAG\`"
+          echo "**Type:** \`$RELEASE_TYPE\`"
+          echo "**Docker Tag:** \`$DOCKER_TAG\`"
+          echo "**Git Tag:** \`$GIT_TAG\`"
+          echo ""
+          echo "**Docker Image:**"
+          echo "\`\`\`"
+          echo "docker pull $REGISTRY_USERNAME/clamav-api:$DOCKER_TAG"
+          echo "\`\`\`"
+          echo ""
+          if [[ "$CREATE_RELEASE" == "true" ]]; then
+            echo "📦 GitHub Release created: [$GIT_TAG]($SERVER_URL/$REPOSITORY/releases/tag/$GIT_TAG)"
+          fi
+        env:
+          DOCKER_TAG: ${{ env.DOCKER_TAG }}
+          RELEASE_TYPE: ${{ github.event.inputs.release_type }}
+          GIT_TAG: ${{ env.GIT_TAG }}
+          REGISTRY_USERNAME: ${{ secrets.DOCKER_REGISTRY_USERNAME }}
+          CREATE_RELEASE: ${{ github.event.inputs.create_release }}
+          SERVER_URL: ${{ github.server_url }}
+          REPOSITORY: ${{ github.repository }}

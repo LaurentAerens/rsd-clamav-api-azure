@@ -10,8 +10,6 @@ updates:
     open-pull-requests-limit: 5
     pull-request-branch-name:
       separator: "/"
-    reviewers:
-      - "laerens"
     allow:
       - dependency-type: "all"
     commit-message:
@@ -31,8 +29,6 @@ updates:
       time: "03:00"
     pull-request-branch-name:
       separator: "/"
-    reviewers:
-      - "laerens"
     labels:
       - "dependencies"
       - "docker"
@@ -49,7 +45,5 @@ updates:
       separator: "/"
     reviewers:
       - "laerens"
-    labels:
-      - "dependencies"
       - "github-actions"
     rebase-strategy: "auto"
