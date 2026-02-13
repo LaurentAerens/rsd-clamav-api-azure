@@ -2,6 +2,7 @@ using Arcus.ClamAV.Endpoints;
 using Arcus.ClamAV.Handlers;
 using Arcus.ClamAV.Services;
 using Microsoft.AspNetCore.Http.Features;
+using Microsoft.Extensions.Logging.ApplicationInsights;
 using Microsoft.OpenApi.Models;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -22,12 +23,12 @@ if (!string.IsNullOrWhiteSpace(appInsightsConnectionString))
     builder.Services.AddApplicationInsightsTelemetry(options =>
     {
         options.ConnectionString = appInsightsConnectionString;
-        options.EnableAdaptiveSampling = true;
-        options.EnablePerformanceCounterCollectionModule = true;
-        options.EnableDependencyTrackingTelemetryModule = true;
     });
 
-    builder.Logging.AddApplicationInsights();
+    builder.Logging.AddApplicationInsights(options =>
+    {
+        options.IncludeScopes = true;
+    });
 }
 
 var maxFileSizeMb = int.TryParse(Environment.GetEnvironmentVariable("MAX_FILE_SIZE_MB"), out var m) ? m : 200;
