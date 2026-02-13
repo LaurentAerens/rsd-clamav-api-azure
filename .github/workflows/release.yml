@@ -184,7 +184,7 @@ jobs:
 
       - name: Create GitHub Release
         if: github.event.inputs.create_release == 'true'
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ env.GIT_TAG }}
           body_path: ${{ steps.release_notes.outputs.release_notes_file }}
