@@ -27,10 +27,12 @@ FRESHCLAM_DELAY_SECS=0
 
 # Install ClamAV packages
 RUN apt-get update \
+ && apt-get upgrade -y \
  && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
     clamav clamav-daemon clamav-freshclam ca-certificates curl tini netcat-openbsd sudo \
  && apt-get install --reinstall -y ca-certificates \
  && update-ca-certificates --fresh \
+ && apt-get autoremove -y \
  && rm -rf /var/lib/apt/lists/*
 
 # Create app user and configure permissions
