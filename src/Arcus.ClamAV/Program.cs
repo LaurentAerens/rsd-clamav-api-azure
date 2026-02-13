@@ -2,7 +2,6 @@ using Arcus.ClamAV.Endpoints;
 using Arcus.ClamAV.Handlers;
 using Arcus.ClamAV.Services;
 using Microsoft.AspNetCore.Http.Features;
-using Microsoft.Extensions.Logging.ApplicationInsights;
 using Microsoft.OpenApi.Models;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -23,11 +22,6 @@ if (!string.IsNullOrWhiteSpace(appInsightsConnectionString))
     builder.Services.AddApplicationInsightsTelemetry(options =>
     {
         options.ConnectionString = appInsightsConnectionString;
-    });
-
-    builder.Logging.AddApplicationInsights(options =>
-    {
-        options.IncludeScopes = true;
     });
 }
 
