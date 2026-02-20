@@ -72,9 +72,5 @@ EXPOSE 8080
 # Healthcheck: ensure clamd is up and the API responds
 HEALTHCHECK --interval=30s --timeout=5s --start-period=60s --retries=5 \
 CMD bash -lc 'echo PING | nc -w 2 127.0.0.1 3310 >/dev/null 2>&1 && curl -sf http://127.0.0.1:8080/healthz >/dev/null'
-# Switch to non-root user
-USER appuser
-
-
 ENTRYPOINT ["/usr/bin/tini", "--"]
 CMD ["/start.sh"]

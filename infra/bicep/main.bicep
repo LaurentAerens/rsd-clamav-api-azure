@@ -21,8 +21,19 @@ param location string = resourceGroup().location
 param applicationName string = 'clamav-api'
 
 // ========================================
-// Azure Container Registry Parameters
+// Container Image Source Parameters
 // ========================================
+
+@description('Use local Azure Container Registry instead of pulling from Docker Hub')
+param useLocalAcr bool = false
+
+@description('Default Docker Hub image (only used if useLocalAcr is false)')
+param dockerHubImage string = 'laurentaerenscodit/clamav-api'
+
+// ========================================
+// Azure Container Registry Parameters (Optional)
+// ========================================
+// Only used if useLocalAcr is true
 
 @description('Name of the Azure Container Registry (leave empty to auto-generate)')
 param containerRegistryName string = ''
@@ -239,8 +250,8 @@ module applicationInsights './modules/app-insights.bicep' = if (enableApplicatio
   }
 }
 
-// Deploy Azure Container Registry
-module containerRegistry './modules/acr.bicep' = {
+// Deploy Azure Container Registry (only if using local ACR)
+module containerRegistry './modules/acr.bicep' = if (useLocalAcr) {
   name: 'deploy-acr'
   params: {
     registryName: acrName
@@ -304,9 +315,9 @@ module containerApp './modules/container-app.bicep' = {
     location: location
     environmentId: useExistingManagedEnvironment ? existingEnvironment.id : (!useExistingManagedEnvironment ? containerEnvironment.outputs.environmentId : '')
     storageMountName: 'clamav-db-storage'
-    containerImage: '${containerRegistry.outputs.loginServer}/${applicationName}:${containerImageTag}'
-    containerRegistryServer: containerRegistry.outputs.loginServer
-    useManagedIdentityForRegistry: true
+    containerImage: useLocalAcr ? '${containerRegistry.outputs.loginServer}/${applicationName}:${containerImageTag}' : (contains(dockerHubImage, ':') ? dockerHubImage : '${dockerHubImage}:${containerImageTag}')
+    containerRegistryServer: useLocalAcr ? containerRegistry.outputs.loginServer : ''
+    useManagedIdentityForRegistry: useLocalAcr
     cpuCores: containerCpuCores
     memorySize: containerMemory
     minReplicas: minReplicas
@@ -323,11 +334,11 @@ module containerApp './modules/container-app.bicep' = {
   }
 }
 
-// Assign AcrPull role to Container App managed identity
+// Assign AcrPull role to Container App managed identity (only if using local ACR)
 var acrPullRoleDefinitionId = subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '7f951dda-4ed3-4680-a7ca-43fe172d538d')
 var roleAssignmentName = guid(containerRegistry.name, containerApp.name, acrPullRoleDefinitionId)
 
-resource acrPullRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+resource acrPullRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (useLocalAcr) {
   name: roleAssignmentName
   scope: resourceGroup()
   properties: {
@@ -383,11 +394,11 @@ output containerAppFqdn string = containerApp.outputs.fqdn
 @description('Container App URL')
 output containerAppUrl string = 'https://${containerApp.outputs.fqdn}'
 
-@description('Container Registry login server')
-output containerRegistryLoginServer string = containerRegistry.outputs.loginServer
+@description('Container Registry login server (empty if using Docker Hub)')
+output containerRegistryLoginServer string = useLocalAcr ? containerRegistry.outputs.loginServer : 'Using Docker Hub: ${dockerHubImage}'
 
-@description('Container Registry name')
-output containerRegistryName string = containerRegistry.outputs.registryName
+@description('Container Registry name (N/A if using Docker Hub)')
+output containerRegistryName string = useLocalAcr ? containerRegistry.outputs.registryName : 'N/A - using Docker Hub'
 
 @description('Storage account name')
 output storageAccountName string = storage.outputs.storageAccountName

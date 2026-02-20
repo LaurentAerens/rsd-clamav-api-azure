@@ -82,19 +82,19 @@ param applicationInsightsConnectionString string = ''
 @description('Tags to apply to the Container App')
 param tags object = {}
 
-// Prepare registry configuration
-var registries = useManagedIdentityForRegistry ? [
+// Prepare registry configuration (empty for public Docker Hub images)
+var registries = (useManagedIdentityForRegistry && !empty(containerRegistryServer)) ? [
   {
     server: containerRegistryServer
     identity: 'system'
   }
-] : (empty(containerRegistryUsername) ? [] : [
+] : ((!empty(containerRegistryUsername) && !empty(containerRegistryServer)) ? [
   {
     server: containerRegistryServer
     username: containerRegistryUsername
     passwordSecretRef: 'registry-password'
   }
-])
+] : [])
 
 // Deploy Container App using AVM module
 module containerApp 'br/public:avm/res/app/container-app:0.11.0' = {
@@ -188,7 +188,7 @@ module containerApp 'br/public:avm/res/app/container-app:0.11.0' = {
               scheme: 'HTTP'
             }
             initialDelaySeconds: 60
-            periodSeconds: 10
+            periodSeconds: 30
             timeoutSeconds: 5
             failureThreshold: 3
           }
@@ -199,7 +199,7 @@ module containerApp 'br/public:avm/res/app/container-app:0.11.0' = {
               port: 8080
               scheme: 'HTTP'
             }
-            initialDelaySeconds: 1
+            initialDelaySeconds: 60
             periodSeconds: 10
             timeoutSeconds: 5
             failureThreshold: 10
@@ -232,7 +232,7 @@ module containerApp 'br/public:avm/res/app/container-app:0.11.0' = {
     ingressExternal: true
     ingressTargetPort: 8080
     ingressTransport: 'http'
-    ingressAllowInsecure: false
+    ingressAllowInsecure: true
     
     // Scaling configuration
     scaleMinReplicas: minReplicas

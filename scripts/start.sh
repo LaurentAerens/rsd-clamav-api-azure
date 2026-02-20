@@ -31,7 +31,7 @@ echo "[start.sh] Running initial freshclam update..."
 if [[ $EUID -eq 0 ]]; then
   su -s /bin/sh -c 'freshclam --stdout --verbose' clamav || true
 else
-  sudo -u clamav freshclam --stdout --verbose || true
+  freshclam --stdout --verbose || true
 fi
 
 # Start clamd in the foreground
@@ -39,7 +39,7 @@ echo "[start.sh] Starting clamd..."
 if [[ $EUID -eq 0 ]]; then
   su -s /bin/sh -c 'clamd --foreground=true --config-file=/etc/clamav/clamd.conf' clamav &
 else
-  sudo -u clamav clamd --foreground=true --config-file=/etc/clamav/clamd.conf &
+  clamd --foreground=true --config-file=/etc/clamav/clamd.conf &
 fi
 CLAMD_PID=$!
 

@@ -74,8 +74,23 @@ param useExistingManagedEnvironment = false
 param containerImageTag = 'latest'
 
 // Container resources
-param containerCpuCores = '1.0'        // CPU cores: 0.25, 0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0
-param containerMemory = '2.0Gi'        // Memory: must be 2x CPU (e.g., 0.5Gi, 1.0Gi, 2.0Gi, 4.0Gi)
+// Note: ClamAV requires minimum 4GB memory
+param containerCpuCores = '2.0'        // CPU cores: 0.25, 0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0
+param containerMemory = '4.0Gi'        // Memory: must be 2x CPU (e.g., 0.5Gi, 1.0Gi, 2.0Gi, 4.0Gi)
+
+// ========================================
+// CONTAINER IMAGE SOURCE (DOCKER HUB vs ACR)
+// ========================================
+// By default, images are pulled from Docker Hub (laurentaerenscodit/clamav-api)
+// Set useLocalAcr = true to build and use images from a local Azure Container Registry instead
+
+// Use local Azure Container Registry instead of Docker Hub
+// Default: false (use Docker Hub image)
+param useLocalAcr = false
+
+// Docker Hub image name (only used if useLocalAcr is false)
+// Default: 'laurentaerenscodit/clamav-api'
+param dockerHubImage = 'laurentaerenscodit/clamav-api'
 
 // Scaling configuration
 param minReplicas = 1                  // Minimum replicas (0 = scale to zero)
@@ -96,13 +111,15 @@ param maxConcurrentWorkers = 4
 param aspNetCoreEnvironment = 'Development'
 
 // ========================================
-// AZURE CONTAINER REGISTRY
+// AZURE CONTAINER REGISTRY (OPTIONAL)
 // ========================================
+// Only used if useLocalAcr is true
 
 // Container Registry name (leave empty for auto-generated name)
-// param containerRegistryName = 'myacrname'  // Uncomment to use custom name
+// Uncomment to use custom name (and set useLocalAcr = true)
+// param containerRegistryName = 'myacrname'
 
-// Container Registry SKU
+// Container Registry SKU (only used if useLocalAcr = true)
 // Basic: Dev/test, Standard: Production (recommended), Premium: Geo-replication
 param containerRegistrySku = 'Standard'
 
