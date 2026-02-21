@@ -377,9 +377,9 @@ public class ContainerBlackBoxTests
             ""level1"": {
                 ""level2"": {
                     ""level3"": {
-                        ""data"": ""anVzdCBzb21lIHJhbmRvbSBzdHJpbmcgaGVyZQ=="",
+                        ""data"": ""cXVpdGUgYSBsb3Qgb2YgZGF0YSBpbiBoZXJlIGlzbid0IGl0"",
                         ""items"": [
-                            { ""content"": ""dGhpcyBpcyBzb21lIGNsZWFuIGRhdGE0vnjbmdvZw=="" },
+                            { ""content"": ""dGhpcyBpcyBzb21lIGNsZWFuIGRhdGEgNCB5b3U="" },
                             { ""content"": ""YW5vdGhlciBzbXJhc3QgY2xlYW4gZGF0YSBzdHJpbmc="" }
                         ]
                     }
