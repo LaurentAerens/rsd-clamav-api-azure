@@ -13,7 +13,7 @@ It’s designed for local development, testing, and service integration — all 
 - 🔐 **Azure AD Authentication** – Secured with OAuth 2.0 client credentials flow.
 - 🔄 **Automatic virus database updates** at start-up.
 - 🛡️ **Extended community signatures** – The sanesecurity/rogue.hdb is loaded in to provide some additional signatures beyond the default ClamAV database without causing too many false positives.
-- 🧠 **Swagger UI** for easy manual testing (`/swagger`) with OAuth2 support.
+- 🧠 **Swagger UI** for easy manual testing (`/swagger`) with OAuth2 support - **disabled by default in Docker** (enabled for local development).
 - 💬 **Endpoints** for scanning, health checks, and ClamAV version info.
 - ⚡ **Async scanning support** – Upload large files and poll for results (ideal for files >10MB).
 - 🌐 **URL scanning** – Download and scan files from URLs with Base64 support.
@@ -244,7 +244,20 @@ This will:
 ## 🔍 Test Examples
 
 ### 🧪 Via Swagger UI
-Open **[http://localhost:8080/swagger](http://localhost:8080/swagger)** in your browser.  
+
+**Note:** Swagger UI is **disabled by default** in the Docker container for security. It's enabled automatically when running in Development mode (local testing).
+
+To enable Swagger in Docker, set the environment variable:
+```bash
+docker run -e Swagger__Enabled=true -p 8080:8080 clamav-api
+```
+
+Or use the pre-built Swagger-enabled image:
+```bash
+docker pull your-registry/clamav-api:v1.0.0-swagger
+```
+
+Once enabled, open **[http://localhost:8080/swagger](http://localhost:8080/swagger)** in your browser.  
 You'll see interactive endpoints — you can upload files directly under `/scan` or `/scan/async`.
 
 ---
@@ -461,6 +474,7 @@ Environment variables can be overridden in `docker-compose.yml`:
 | `AzureAd__TenantId` | - | Azure AD Tenant ID |
 | `AzureAd__ClientId` | - | Azure AD Application (client) ID |
 | `AzureAd__Audience` | - | API audience (usually `api://{ClientId}`) |
+| `Swagger__Enabled` | `false` | Enable Swagger UI and OpenAPI documentation |
 | `Base64Detection__Enabled` | `true` | Enable automatic Base64 file content detection |
 | `Base64Detection__PeekSizeBytes` | `4096` | Bytes to examine for Base64 detection |
 
