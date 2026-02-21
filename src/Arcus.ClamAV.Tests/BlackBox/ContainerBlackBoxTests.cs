@@ -214,4 +214,246 @@ public class ContainerBlackBoxTests
         response.IsSuccessStatusCode.ShouldBeTrue();
         stopwatch.ElapsedMilliseconds.ShouldBeLessThan(5000);
     }
+
+    /// <summary>
+    /// JSON Scan Tests - Tests for malware detection in JSON payloads.
+    /// These tests verify that the JSON scan endpoint properly detects:
+    /// - Base64-encoded malware
+    /// - Plaintext malware strings
+    /// - Nested structures with malware
+    /// - Mixed content types
+    /// </summary>
+
+    /// <summary>
+    /// Verify JSON scan detects plaintext EICAR in string properties.
+    /// The EICAR test file is a standard antivirus test pattern.
+    /// </summary>
+    [Fact(DisplayName = "JSON scan should detect plaintext EICAR in string properties")]
+    public async Task JsonScan_ShouldDetectPlaintextEicar()
+    {
+        // Arrange
+        var payload = JsonDocument.Parse(@"{
+            ""file"": ""X5O!P%@AP[4\\PZX54(P^)7CC)7}$EICAR-STANDARD-ANTIVIRUS-TEST-FILE!$H+H*"",
+            ""filename"": ""test.exe""
+        }").RootElement;
+
+        var scanRequest = new JsonScanRequest { Payload = payload };
+
+        // Act
+        var response = await _httpClient.PostAsJsonAsync($"{_baseUrl}/scan/json", scanRequest);
+
+        // Assert
+        response.StatusCode.ShouldBe(HttpStatusCode.NotAcceptable); // 406 for infected
+        var result = await response.Content.ReadFromJsonAsync<JsonScanResult>();
+        result.ShouldNotBeNull();
+        result!.Status.ShouldBe("infected");
+        result.Malware.ShouldContain("EICAR");
+        result.ItemsScanned.ShouldBeGreaterThan(0);
+    }
+
+    /// <summary>
+    /// Verify JSON scan detects base64-encoded EICAR.
+    /// Base64: WDVPIVAlQEFQWzRcUFpYNTQoUF4pN0NDKTd9JEVJQ0FSLVNUQU5EQVJELUFOVElWSVJVUy1URVNULUZJTEUhJEgrSCo=
+    /// </summary>
+    [Fact(DisplayName = "JSON scan should detect base64-encoded EICAR")]
+    public async Task JsonScan_ShouldDetectBase64Eicar()
+    {
+        // Arrange
+        var payload = JsonDocument.Parse(@"{
+            ""file"": ""WDVPIVAlQEFQWzRcUFpYNTQoUF4pN0NDKTd9JEVJQ0FSLVNUQU5EQVJELUFOVElWSVJVUy1URVNULUZJTEUhJEgrSCo="",
+            ""filename"": ""test.exe""
+        }").RootElement;
+
+        var scanRequest = new JsonScanRequest { Payload = payload };
+
+        // Act
+        var response = await _httpClient.PostAsJsonAsync($"{_baseUrl}/scan/json", scanRequest);
+
+        // Assert
+        response.StatusCode.ShouldBe(HttpStatusCode.NotAcceptable); // 406 for infected
+        var result = await response.Content.ReadFromJsonAsync<JsonScanResult>();
+        result.ShouldNotBeNull();
+        result!.Status.ShouldBe("infected");
+        result.Malware.ShouldContain("EICAR");
+        result.Base64ItemsFound.ShouldBeGreaterThan(0);
+    }
+
+    /// <summary>
+    /// Verify JSON scan detects EICAR in nested objects.
+    /// </summary>
+    [Fact(DisplayName = "JSON scan should detect EICAR in nested object properties")]
+    public async Task JsonScan_ShouldDetectEicarInNestedObjects()
+    {
+        // Arrange
+        var payload = JsonDocument.Parse(@"{
+            ""user"": {
+                ""name"": ""test"",
+                ""attachment"": ""X5O!P%@AP[4\\PZX54(P^)7CC)7}$EICAR-STANDARD-ANTIVIRUS-TEST-FILE!$H+H*""
+            }
+        }").RootElement;
+
+        var scanRequest = new JsonScanRequest { Payload = payload };
+
+        // Act
+        var response = await _httpClient.PostAsJsonAsync($"{_baseUrl}/scan/json", scanRequest);
+
+        // Assert
+        response.StatusCode.ShouldBe(HttpStatusCode.NotAcceptable); // 406 for infected
+        var result = await response.Content.ReadFromJsonAsync<JsonScanResult>();
+        result.ShouldNotBeNull();
+        result!.Status.ShouldBe("infected");
+    }
+
+    /// <summary>
+    /// Verify JSON scan detects EICAR in array elements.
+    /// </summary>
+    [Fact(DisplayName = "JSON scan should detect EICAR in array elements")]
+    public async Task JsonScan_ShouldDetectEicarInArrays()
+    {
+        // Arrange
+        var payload = JsonDocument.Parse(@"{
+            ""documents"": [
+                {
+                    ""type"": ""pdf"",
+                    ""content"": ""WDVPIVAlQEFQWzRcUFpYNTQoUF4pN0NDKTd9JEVJQ0FSLVNUQU5EQVJELUFOVElWSVJVUy1URVNULUZJTEUhJEgrSCo=""
+                },
+                {
+                    ""type"": ""doc"",
+                    ""content"": ""clean content""
+                }
+            ]
+        }").RootElement;
+
+        var scanRequest = new JsonScanRequest { Payload = payload };
+
+        // Act
+        var response = await _httpClient.PostAsJsonAsync($"{_baseUrl}/scan/json", scanRequest);
+
+        // Assert
+        response.StatusCode.ShouldBe(HttpStatusCode.NotAcceptable); // 406 for infected
+        var result = await response.Content.ReadFromJsonAsync<JsonScanResult>();
+        result.ShouldNotBeNull();
+        result!.Status.ShouldBe("infected");
+    }
+
+    /// <summary>
+    /// Verify JSON scan accepts clean JSON with base64 content.
+    /// </summary>
+    [Fact(DisplayName = "JSON scan should accept clean JSON with base64 content")]
+    public async Task JsonScan_ShouldAcceptCleanBase64()
+    {
+        // Arrange
+        var payload = JsonDocument.Parse(@"{
+            ""documents"": [
+                {
+                    ""type"": ""pdf"",
+                    ""content"": ""anVzdCBzb21lIHJhbmRvbSBzdHJpbmc=""
+                }
+            ],
+            ""filename"": ""test.pdf""
+        }").RootElement;
+
+        var scanRequest = new JsonScanRequest { Payload = payload };
+
+        // Act
+        var response = await _httpClient.PostAsJsonAsync($"{_baseUrl}/scan/json", scanRequest);
+
+        // Assert
+        response.StatusCode.ShouldBe(HttpStatusCode.OK);
+        var result = await response.Content.ReadFromJsonAsync<JsonScanResult>();
+        result.ShouldNotBeNull();
+        result!.Status.ShouldBe("clean");
+        result.Base64ItemsFound.ShouldBe(1);
+    }
+
+    /// <summary>
+    /// Verify JSON scan handles complex nested structures.
+    /// </summary>
+    [Fact(DisplayName = "JSON scan should handle deeply nested structures")]
+    public async Task JsonScan_ShouldHandleDeeplyNestedStructures()
+    {
+        // Arrange
+        var payload = JsonDocument.Parse(@"{
+            ""level1"": {
+                ""level2"": {
+                    ""level3"": {
+                        ""data"": ""cXVpdGUgYSBsb3Qgb2YgZGF0YSBpbiBoZXJlIGlzbid0IGl0"",
+                        ""items"": [
+                            { ""content"": ""dGhpcyBpcyBzb21lIGNsZWFuIGRhdGEgNCB5b3U="" },
+                            { ""content"": ""YW5vdGhlciBzbXJhc3QgY2xlYW4gZGF0YSBzdHJpbmc="" }
+                        ]
+                    }
+                }
+            }
+        }").RootElement;
+
+        var scanRequest = new JsonScanRequest { Payload = payload };
+
+        // Act
+        var response = await _httpClient.PostAsJsonAsync($"{_baseUrl}/scan/json", scanRequest);
+
+        // Assert
+        response.StatusCode.ShouldBe(HttpStatusCode.OK);
+        var result = await response.Content.ReadFromJsonAsync<JsonScanResult>();
+        result.ShouldNotBeNull();
+        result!.Status.ShouldBe("clean");
+        result.Base64ItemsFound.ShouldBe(3); // All three strings meet the minimum length requirement and decode successfully
+    }
+
+    /// <summary>
+    /// Verify JSON scan with mixed plaintext and base64 EICAR detects either.
+    /// </summary>
+    [Fact(DisplayName = "JSON scan should detect EICAR in mixed plaintext and base64 content")]
+    public async Task JsonScan_ShouldDetectEicarInMixedContent()
+    {
+        // Arrange
+        var payload = JsonDocument.Parse(@"{
+            ""file"": ""X5O!P%@AP[4\\PZX54(P^)7CC)7}$EICAR-STANDARD-ANTIVIRUS-TEST-FILE!$H+H*"",
+            ""documents"": [
+                { ""content"": ""anVzdCBzb21lIHJhbmRvbSBzdHJpbmc="" },
+                { ""content"": ""Y2xlYW4gZGF0YQ=="" }
+            ]
+        }").RootElement;
+
+        var scanRequest = new JsonScanRequest { Payload = payload };
+
+        // Act
+        var response = await _httpClient.PostAsJsonAsync($"{_baseUrl}/scan/json", scanRequest);
+
+        // Assert
+        response.StatusCode.ShouldBe(HttpStatusCode.NotAcceptable); // 406 for infected
+        var result = await response.Content.ReadFromJsonAsync<JsonScanResult>();
+        result.ShouldNotBeNull();
+        result!.Status.ShouldBe("infected");
+    }
+
+    /// <summary>
+    /// Verify JSON scan result includes proper details about scanned items.
+    /// </summary>
+    [Fact(DisplayName = "JSON scan result should include details about scanned items")]
+    public async Task JsonScan_ShouldReturnDetailedScanInfo()
+    {
+        // Arrange
+        var payload = JsonDocument.Parse(@"{
+            ""file"": ""anVzdCBzb21lIHJhbmRvbSBzdHJpbmc="",
+            ""metadata"": {
+                ""source"": ""email"",
+                ""timestamp"": ""2026-02-21T12:00:00Z""
+            }
+        }").RootElement;
+
+        var scanRequest = new JsonScanRequest { Payload = payload };
+
+        // Act
+        var response = await _httpClient.PostAsJsonAsync($"{_baseUrl}/scan/json", scanRequest);
+
+        // Assert
+        response.StatusCode.ShouldBe(HttpStatusCode.OK);
+        var result = await response.Content.ReadFromJsonAsync<JsonScanResult>();
+        result.ShouldNotBeNull();
+        result!.Details.ShouldNotBeEmpty();
+        result.Details[0].Name.ShouldNotBeNullOrEmpty();
+        result.Details[0].Type.ShouldNotBeNullOrEmpty();
+        result.Details[0].Size.ShouldBeGreaterThan(0);
+    }
 }
