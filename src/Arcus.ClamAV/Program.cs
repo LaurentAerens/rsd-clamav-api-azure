@@ -46,18 +46,23 @@ builder.Services.Configure<FormOptions>(o =>
     o.BufferBody = false; // Don't buffer in memory
 });
 
-builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen(c =>
-{
-    c.SwaggerDoc("v1", new OpenApiInfo
-    {
-        Title = "ClamAV Scan API",
-        Version = "v1",
-        Description = "API wrapper for ClamAV virus scanning with async job support"
-    });
-});
+var swaggerEnabled = builder.Configuration.GetValue<bool>("Swagger:Enabled", false);
 
-builder.Services.AddOpenApiDocument(configure => { configure.Title = "ClamAv Api"; });
+if (swaggerEnabled)
+{
+    builder.Services.AddEndpointsApiExplorer();
+    builder.Services.AddSwaggerGen(c =>
+    {
+        c.SwaggerDoc("v1", new OpenApiInfo
+        {
+            Title = "ClamAV Scan API",
+            Version = "v1",
+            Description = "API wrapper for ClamAV virus scanning with async job support"
+        });
+    });
+
+    builder.Services.AddOpenApiDocument(configure => { configure.Title = "ClamAv Api"; });
+}
 
 // Register services
 builder.Services.AddSingleton<IClamAvInfoService, ClamAvInfoService>();
@@ -89,11 +94,14 @@ builder.Services.AddHostedService<JobCleanupService>();
 
 var app = builder.Build();
 
-app.UseSwagger();
-app.UseSwaggerUI(c =>
+if (swaggerEnabled)
 {
-    c.SwaggerEndpoint("/swagger/v1/swagger.json", "ClamAV Scan API v1");
-});
+    app.UseSwagger();
+    app.UseSwaggerUI(c =>
+    {
+        c.SwaggerEndpoint("/swagger/v1/swagger.json", "ClamAV Scan API v1");
+    });
+}
 
 // Map endpoints
 app.MapHealthEndpoints();
