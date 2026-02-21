@@ -1,4 +1,4 @@
-using './main.bicep'
+using '../main.bicep'
 
 // ========================================
 // Example Parameter File for ClamAV API Deployment
@@ -49,17 +49,48 @@ param aadClientId = ''  // TODO: Replace with your Azure AD App Client ID
 // ========================================
 // EXISTING ENVIRONMENT (OPTIONAL)
 // ========================================
-// Set useExistingManagedEnvironment = true if you want to deploy
-// to an existing Container Apps environment instead of creating a new one
+// Set existingContainerEnvironmentId to use an existing Container Apps environment
+// instead of creating a new one. Use full resource ID for cross-subscription scenarios.
 
-// Use existing Container Apps environment instead of creating new
+// Existing Container Apps environment resource ID (leave empty to create new)
+// Format: /subscriptions/{subscriptionId}/resourceGroups/{resourceGroup}/providers/Microsoft.App/managedEnvironments/{environmentName}
+// param existingContainerEnvironmentId = '/subscriptions/12345678-1234-1234-1234-123456789abc/resourceGroups/rg-shared/providers/Microsoft.App/managedEnvironments/cae-shared-prod'
+
+// DEPRECATED: Use existingContainerEnvironmentId instead
+// Legacy parameters kept for backward compatibility
 param useExistingManagedEnvironment = false
+// param existingManagedEnvironmentName = 'cae-shared-prod'
+// param existingManagedEnvironmentResourceGroup = 'rg-shared-infrastructure'
 
-// Name of existing environment (required if useExistingManagedEnvironment = true)
-// param existingManagedEnvironmentName = 'cae-shared-prod'  // Uncomment if using existing environment
+// ========================================
+// BRING YOUR OWN RESOURCES (OPTIONAL)
+// ========================================
+// Provide resource IDs of existing resources to avoid creating new ones
+// Useful for shared infrastructure, cost savings, or organizational policies
 
-// Resource group of existing environment (defaults to deployment resource group)
-// param existingManagedEnvironmentResourceGroup = 'rg-shared-infrastructure'  // Uncomment if in different RG
+// ---------- Existing Log Analytics Workspace ----------
+// If provided, uses existing workspace instead of creating new
+// Format: /subscriptions/{subscriptionId}/resourceGroups/{resourceGroup}/providers/Microsoft.OperationalInsights/workspaces/{workspaceName}
+// param existingLogAnalyticsWorkspaceId = '/subscriptions/12345678-1234-1234-1234-123456789abc/resourceGroups/rg-monitoring/providers/Microsoft.OperationalInsights/workspaces/log-shared-prod'
+
+// ---------- Existing Application Insights ----------
+// If provided, uses existing Application Insights instead of creating new
+// Format: /subscriptions/{subscriptionId}/resourceGroups/{resourceGroup}/providers/Microsoft.Insights/components/{appInsightsName}
+// param existingApplicationInsightsId = '/subscriptions/12345678-1234-1234-1234-123456789abc/resourceGroups/rg-monitoring/providers/Microsoft.Insights/components/appi-shared-prod'
+
+// ---------- Existing Storage Account ----------
+// If provided, uses existing storage account and creates file share in it
+// Format: /subscriptions/{subscriptionId}/resourceGroups/{resourceGroup}/providers/Microsoft.Storage/storageAccounts/{accountName}
+// param existingStorageAccountId = '/subscriptions/12345678-1234-1234-1234-123456789abc/resourceGroups/rg-storage/providers/Microsoft.Storage/storageAccounts/stsharedprod'
+
+// Storage account key (REQUIRED only if using existing storage in different subscription)
+// Leave empty if storage is in same subscription (key retrieved automatically)
+// param existingStorageAccountKey = 'your-storage-key-here'  // Use secure parameter in production
+
+// ---------- Existing Azure Container Registry ----------
+// If provided, uses existing ACR instead of creating new (requires useLocalAcr = true)
+// Format: /subscriptions/{subscriptionId}/resourceGroups/{resourceGroup}/providers/Microsoft.ContainerRegistry/registries/{registryName}
+// param existingContainerRegistryId = '/subscriptions/12345678-1234-1234-1234-123456789abc/resourceGroups/rg-containers/providers/Microsoft.ContainerRegistry/registries/acrsharedprod'
 
 // ========================================
 // CONTAINER APP CONFIGURATION
@@ -173,17 +204,24 @@ param appInsightsDisableIpMasking = false
 // MALWARE DETECTION ALERTS (OPTIONAL)
 // ========================================
 // Configure alerts to be notified when malware is detected
-// Requires an Azure Monitor Action Group for notifications
+// Two options:
+//   1. Provide existing Action Group ID (malwareAlertActionGroupId)
+//   2. Provide email address to create new Action Group (malwareAlertEmail)
 
 // Enable alerts for malware detection events
 param enableMalwareAlerts = true
 
-// Resource ID of the Action Group to send alerts to
+// Option 1: Use existing Action Group
+// Resource ID of an existing Action Group to send alerts to
 // Format: /subscriptions/{subscriptionId}/resourceGroups/{resourceGroup}/providers/Microsoft.Insights/actionGroups/{actionGroupName}
-// Leave empty to disable malware alerts even if enableMalwareAlerts is true
-// Example:
 // param malwareAlertActionGroupId = '/subscriptions/12345678-1234-1234-1234-123456789abc/resourceGroups/rg-monitoring/providers/Microsoft.Insights/actionGroups/Security-Team'
 param malwareAlertActionGroupId = ''
+
+// Option 2: Create new Action Group from email address
+// If malwareAlertActionGroupId is empty, provide email to create new Action Group
+// Example: 'security-team@example.com'
+// param malwareAlertEmail = 'security-team@example.com'
+param malwareAlertEmail = ''
 
 // Alert threshold: number of malware detections required to trigger alert
 // Set to 1 to alert on any detection, higher values require multiple detections in the time window

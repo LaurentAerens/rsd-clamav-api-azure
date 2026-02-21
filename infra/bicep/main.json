@@ -4,8 +4,8 @@
   "metadata": {
     "_generator": {
       "name": "bicep",
-      "version": "0.38.33.27573",
-      "templateHash": "15459231251125097542"
+      "version": "0.40.2.10011",
+      "templateHash": "6807353617355572310"
     }
   },
   "parameters": {
@@ -33,11 +33,33 @@
         "description": "Base name for the application (used for naming resources)"
       }
     },
+    "useLocalAcr": {
+      "type": "bool",
+      "defaultValue": false,
+      "metadata": {
+        "description": "Use local Azure Container Registry instead of pulling from Docker Hub"
+      }
+    },
+    "dockerHubImage": {
+      "type": "string",
+      "defaultValue": "laurentaerenscodit/clamav-api",
+      "metadata": {
+        "description": "Default Docker Hub image (only used if useLocalAcr is false)"
+      }
+    },
+    "existingContainerRegistryId": {
+      "type": "string",
+      "defaultValue": "",
+      "metadata": {
+        "example": "/subscriptions/{subscriptionId}/resourceGroups/{resourceGroup}/providers/Microsoft.ContainerRegistry/registries/{registryName}",
+        "description": "Existing Azure Container Registry resource ID (leave empty to create new)"
+      }
+    },
     "containerRegistryName": {
       "type": "string",
       "defaultValue": "",
       "metadata": {
-        "description": "Name of the Azure Container Registry (leave empty to auto-generate)"
+        "description": "Name of the Azure Container Registry (leave empty to auto-generate, used only when creating new)"
       }
     },
     "containerRegistrySku": {
@@ -49,49 +71,72 @@
         "Premium"
       ],
       "metadata": {
-        "description": "Container Registry SKU"
+        "description": "Container Registry SKU (used only when creating new)"
       }
     },
     "enableAcrAdminUser": {
       "type": "bool",
       "defaultValue": false,
       "metadata": {
-        "description": "Enable admin user for Container Registry (useful for initial setup)"
+        "description": "Enable admin user for Container Registry (useful for initial setup, used only when creating new)"
+      }
+    },
+    "existingContainerEnvironmentId": {
+      "type": "string",
+      "defaultValue": "",
+      "metadata": {
+        "example": "/subscriptions/{subscriptionId}/resourceGroups/{resourceGroup}/providers/Microsoft.App/managedEnvironments/{environmentName}",
+        "description": "Existing Container Apps environment resource ID (leave empty to create new)"
       }
     },
     "useExistingManagedEnvironment": {
       "type": "bool",
       "defaultValue": false,
       "metadata": {
-        "description": "Use an existing Container Apps managed environment instead of creating a new one"
+        "description": "[DEPRECATED - use existingContainerEnvironmentId] Use an existing Container Apps managed environment instead of creating a new one"
       }
     },
     "existingManagedEnvironmentName": {
       "type": "string",
       "defaultValue": "",
       "metadata": {
-        "description": "Name of existing Container Apps managed environment (required if useExistingManagedEnvironment is true)"
+        "description": "[DEPRECATED - use existingContainerEnvironmentId] Name of existing Container Apps managed environment (required if useExistingManagedEnvironment is true)"
       }
     },
     "existingManagedEnvironmentResourceGroup": {
       "type": "string",
       "defaultValue": "[resourceGroup().name]",
       "metadata": {
-        "description": "Resource group of existing managed environment (defaults to current resource group)"
+        "description": "[DEPRECATED - use existingContainerEnvironmentId] Resource group of existing managed environment (defaults to current resource group)"
       }
     },
     "enableZoneRedundancy": {
       "type": "bool",
       "defaultValue": false,
       "metadata": {
-        "description": "Enable zone redundancy for Container Apps environment"
+        "description": "Enable zone redundancy for Container Apps environment (used only when creating new)"
+      }
+    },
+    "existingStorageAccountId": {
+      "type": "string",
+      "defaultValue": "",
+      "metadata": {
+        "example": "/subscriptions/{subscriptionId}/resourceGroups/{resourceGroup}/providers/Microsoft.Storage/storageAccounts/{accountName}",
+        "description": "Existing storage account resource ID (leave empty to create new)"
+      }
+    },
+    "existingStorageAccountKey": {
+      "type": "securestring",
+      "defaultValue": "",
+      "metadata": {
+        "description": "Existing storage account key (required only if using existing storage account in different subscription)"
       }
     },
     "storageAccountName": {
       "type": "string",
       "defaultValue": "",
       "metadata": {
-        "description": "Name of the storage account for ClamAV database (leave empty to auto-generate)"
+        "description": "Name of the storage account for ClamAV database (leave empty to auto-generate, used only when creating new)"
       }
     },
     "clamavFileShareName": {
@@ -214,27 +259,43 @@
         "description": "Azure AD audience for token validation (defaults to client ID if not specified)"
       }
     },
+    "existingLogAnalyticsWorkspaceId": {
+      "type": "string",
+      "defaultValue": "",
+      "metadata": {
+        "example": "/subscriptions/{subscriptionId}/resourceGroups/{resourceGroup}/providers/Microsoft.OperationalInsights/workspaces/{workspaceName}",
+        "description": "Existing Log Analytics workspace resource ID (leave empty to create new)"
+      }
+    },
     "logRetentionDays": {
       "type": "int",
       "defaultValue": 30,
       "minValue": 30,
       "maxValue": 730,
       "metadata": {
-        "description": "Log retention in days"
+        "description": "Log retention in days (used only when creating new)"
+      }
+    },
+    "existingApplicationInsightsId": {
+      "type": "string",
+      "defaultValue": "",
+      "metadata": {
+        "example": "/subscriptions/{subscriptionId}/resourceGroups/{resourceGroup}/providers/Microsoft.Insights/components/{appInsightsName}",
+        "description": "Existing Application Insights resource ID (leave empty to create new)"
       }
     },
     "enableApplicationInsights": {
       "type": "bool",
       "defaultValue": true,
       "metadata": {
-        "description": "Enable Application Insights for telemetry and monitoring"
+        "description": "Enable Application Insights for telemetry and monitoring (disable = no telemetry)"
       }
     },
     "applicationInsightsName": {
       "type": "string",
       "defaultValue": "",
       "metadata": {
-        "description": "Name of the Application Insights resource (leave empty to auto-generate)"
+        "description": "Name of the Application Insights resource (leave empty to auto-generate, used only when creating new)"
       }
     },
     "appInsightsRetentionDays": {
@@ -243,7 +304,7 @@
       "minValue": 30,
       "maxValue": 730,
       "metadata": {
-        "description": "Application Insights data retention in days"
+        "description": "Application Insights data retention in days (used only when creating new)"
       }
     },
     "appInsightsDailyCapGB": {
@@ -251,14 +312,14 @@
       "defaultValue": 0,
       "minValue": 0,
       "metadata": {
-        "description": "Application Insights daily data cap in GB (0 = no cap)"
+        "description": "Application Insights daily data cap in GB (0 = no cap, used only when creating new)"
       }
     },
     "appInsightsDisableIpMasking": {
       "type": "bool",
       "defaultValue": false,
       "metadata": {
-        "description": "Disable IP masking in Application Insights for detailed telemetry"
+        "description": "Disable IP masking in Application Insights for detailed telemetry (used only when creating new)"
       }
     },
     "enableMalwareAlerts": {
@@ -273,7 +334,14 @@
       "defaultValue": "",
       "metadata": {
         "example": "/subscriptions/{subscriptionId}/resourceGroups/{resourceGroup}/providers/Microsoft.Insights/actionGroups/{actionGroupName}",
-        "description": "Resource ID of the Action Group to notify on malware detection"
+        "description": "Resource ID of existing Action Group to notify on malware detection (leave empty to create from email)"
+      }
+    },
+    "malwareAlertEmail": {
+      "type": "string",
+      "defaultValue": "",
+      "metadata": {
+        "description": "Email address for malware alerts (creates new Action Group if malwareAlertActionGroupId is empty)"
       }
     },
     "malwareAlertThreshold": {
@@ -312,11 +380,16 @@
     "logAnalyticsName": "[format('log-{0}-{1}-{2}', parameters('applicationName'), parameters('environmentName'), variables('resourceSuffix'))]",
     "appInsightsName": "[if(not(empty(parameters('applicationInsightsName'))), parameters('applicationInsightsName'), format('appi-{0}-{1}', parameters('applicationName'), parameters('environmentName')))]",
     "containerEnvironmentName": "[format('cae-{0}-{1}', parameters('applicationName'), parameters('environmentName'))]",
+    "actionGroupName": "[format('ag-{0}-{1}-malware', parameters('applicationName'), parameters('environmentName'))]",
+    "actionGroupShortName": "MalwareAlert",
+    "useExistingContainerEnv": "[or(not(empty(parameters('existingContainerEnvironmentId'))), parameters('useExistingManagedEnvironment'))]",
+    "shouldCreateActionGroup": "[and(and(parameters('enableMalwareAlerts'), empty(parameters('malwareAlertActionGroupId'))), not(empty(parameters('malwareAlertEmail'))))]",
     "acrPullRoleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '7f951dda-4ed3-4680-a7ca-43fe172d538d')]",
     "roleAssignmentName": "[guid('deploy-acr', 'deploy-container-app', variables('acrPullRoleDefinitionId'))]"
   },
   "resources": [
     {
+      "condition": "[parameters('useLocalAcr')]",
       "type": "Microsoft.Authorization/roleAssignments",
       "apiVersion": "2022-04-01",
       "name": "[variables('roleAssignmentName')]",
@@ -331,47 +404,168 @@
       ]
     },
     {
-      "condition": "[and(and(parameters('enableMalwareAlerts'), parameters('enableApplicationInsights')), not(empty(parameters('malwareAlertActionGroupId'))))]",
-      "type": "Microsoft.Insights/metricAlerts",
-      "apiVersion": "2018-03-01",
+      "condition": "[and(and(parameters('enableMalwareAlerts'), parameters('enableApplicationInsights')), or(not(empty(parameters('malwareAlertActionGroupId'))), variables('shouldCreateActionGroup')))]",
+      "type": "Microsoft.Insights/scheduledQueryRules",
+      "apiVersion": "2021-08-01",
       "name": "[format('{0}-malware-detection-alert', parameters('applicationName'))]",
-      "location": "global",
+      "location": "[parameters('location')]",
       "tags": "[parameters('tags')]",
       "properties": {
+        "displayName": "[format('Malware Detection Alert - {0}', parameters('applicationName'))]",
         "description": "Alert triggered when malware is detected by the ClamAV scanning API",
         "severity": 2,
         "enabled": true,
         "scopes": [
-          "[if(parameters('enableApplicationInsights'), reference(resourceId('Microsoft.Resources/deployments', 'deploy-app-insights'), '2025-04-01').outputs.applicationInsightsId.value, '')]"
+          "[reference(resourceId('Microsoft.Resources/deployments', 'deploy-app-insights'), '2025-04-01').outputs.applicationInsightsId.value]"
         ],
-        "evaluationFrequency": "PT1M",
+        "evaluationFrequency": "[format('PT{0}M', parameters('malwareAlertEvaluationMinutes'))]",
         "windowSize": "[format('PT{0}M', parameters('malwareAlertEvaluationMinutes'))]",
         "criteria": {
-          "odata.type": "Microsoft.Azure.Monitor.MultipleResourceMultipleMetricCriteria",
           "allOf": [
             {
-              "name": "MalwareDetections",
-              "metricName": "MalwareDetections",
+              "query": "customEvents | where name == \"MalwareDetected\" | summarize count()",
+              "timeAggregation": "Count",
               "operator": "GreaterThanOrEqual",
               "threshold": "[parameters('malwareAlertThreshold')]",
-              "timeAggregation": "Total",
-              "dimensions": [],
-              "criterionType": "StaticThresholdCriterion"
+              "failingPeriods": {
+                "numberOfEvaluationPeriods": 1,
+                "minFailingPeriodsToAlert": 1
+              }
             }
           ]
         },
-        "actions": [
-          {
-            "actionGroupId": "[parameters('malwareAlertActionGroupId')]"
-          }
-        ]
+        "actions": {
+          "actionGroups": [
+            "[if(not(empty(parameters('malwareAlertActionGroupId'))), parameters('malwareAlertActionGroupId'), reference(resourceId('Microsoft.Resources/deployments', 'deploy-action-group'), '2025-04-01').outputs.actionGroupId.value)]"
+          ]
+        },
+        "autoMitigate": true
       },
       "dependsOn": [
+        "[resourceId('Microsoft.Resources/deployments', 'deploy-action-group')]",
         "[resourceId('Microsoft.Resources/deployments', 'deploy-app-insights')]"
       ]
     },
     {
-      "condition": "[not(parameters('useExistingManagedEnvironment'))]",
+      "condition": "[variables('shouldCreateActionGroup')]",
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2025-04-01",
+      "name": "deploy-action-group",
+      "properties": {
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
+        "mode": "Incremental",
+        "parameters": {
+          "actionGroupName": {
+            "value": "[variables('actionGroupName')]"
+          },
+          "shortName": {
+            "value": "[variables('actionGroupShortName')]"
+          },
+          "emailAddress": {
+            "value": "[parameters('malwareAlertEmail')]"
+          },
+          "emailReceiverName": {
+            "value": "Security Team"
+          },
+          "tags": {
+            "value": "[parameters('tags')]"
+          }
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "metadata": {
+            "_generator": {
+              "name": "bicep",
+              "version": "0.40.2.10011",
+              "templateHash": "15420877688774575651"
+            }
+          },
+          "parameters": {
+            "actionGroupName": {
+              "type": "string",
+              "metadata": {
+                "description": "Name of the Action Group"
+              }
+            },
+            "location": {
+              "type": "string",
+              "defaultValue": "global",
+              "metadata": {
+                "description": "Location for the Action Group (must be global)"
+              }
+            },
+            "shortName": {
+              "type": "string",
+              "maxLength": 12,
+              "metadata": {
+                "description": "Short name for the Action Group (max 12 characters)"
+              }
+            },
+            "emailAddress": {
+              "type": "string",
+              "metadata": {
+                "description": "Email address to receive alerts"
+              }
+            },
+            "emailReceiverName": {
+              "type": "string",
+              "defaultValue": "Security Team",
+              "metadata": {
+                "description": "Display name for the email receiver"
+              }
+            },
+            "tags": {
+              "type": "object",
+              "defaultValue": {},
+              "metadata": {
+                "description": "Tags to apply to the Action Group"
+              }
+            }
+          },
+          "resources": [
+            {
+              "type": "Microsoft.Insights/actionGroups",
+              "apiVersion": "2023-01-01",
+              "name": "[parameters('actionGroupName')]",
+              "location": "[parameters('location')]",
+              "tags": "[parameters('tags')]",
+              "properties": {
+                "groupShortName": "[parameters('shortName')]",
+                "enabled": true,
+                "emailReceivers": [
+                  {
+                    "name": "[parameters('emailReceiverName')]",
+                    "emailAddress": "[parameters('emailAddress')]",
+                    "useCommonAlertSchema": true
+                  }
+                ]
+              }
+            }
+          ],
+          "outputs": {
+            "actionGroupId": {
+              "type": "string",
+              "metadata": {
+                "description": "Resource ID of the Action Group"
+              },
+              "value": "[resourceId('Microsoft.Insights/actionGroups', parameters('actionGroupName'))]"
+            },
+            "actionGroupName": {
+              "type": "string",
+              "metadata": {
+                "description": "Name of the Action Group"
+              },
+              "value": "[parameters('actionGroupName')]"
+            }
+          }
+        }
+      }
+    },
+    {
+      "condition": "[or(not(variables('useExistingContainerEnv')), parameters('enableApplicationInsights'))]",
       "type": "Microsoft.Resources/deployments",
       "apiVersion": "2025-04-01",
       "name": "deploy-log-analytics",
@@ -381,6 +575,9 @@
         },
         "mode": "Incremental",
         "parameters": {
+          "existingWorkspaceId": {
+            "value": "[parameters('existingLogAnalyticsWorkspaceId')]"
+          },
           "workspaceName": {
             "value": "[variables('logAnalyticsName')]"
           },
@@ -400,21 +597,30 @@
           "metadata": {
             "_generator": {
               "name": "bicep",
-              "version": "0.38.33.27573",
-              "templateHash": "4535936963066727595"
+              "version": "0.40.2.10011",
+              "templateHash": "10772460959471621127"
             }
           },
           "parameters": {
+            "existingWorkspaceId": {
+              "type": "string",
+              "defaultValue": "",
+              "metadata": {
+                "description": "Existing Log Analytics workspace resource ID (leave empty to create new)"
+              }
+            },
             "workspaceName": {
               "type": "string",
+              "defaultValue": "",
               "metadata": {
-                "description": "Name of the Log Analytics workspace"
+                "description": "Name of the Log Analytics workspace (used only when creating new)"
               }
             },
             "location": {
               "type": "string",
+              "defaultValue": "[resourceGroup().location]",
               "metadata": {
-                "description": "Location for the Log Analytics workspace"
+                "description": "Location for the Log Analytics workspace (used only when creating new)"
               }
             },
             "retentionInDays": {
@@ -423,19 +629,23 @@
               "minValue": 30,
               "maxValue": 730,
               "metadata": {
-                "description": "Retention period in days (30-730)"
+                "description": "Retention period in days (30-730) (used only when creating new)"
               }
             },
             "tags": {
               "type": "object",
               "defaultValue": {},
               "metadata": {
-                "description": "Tags to apply to the workspace"
+                "description": "Tags to apply to the workspace (used only when creating new)"
               }
             }
           },
+          "variables": {
+            "useExisting": "[not(empty(parameters('existingWorkspaceId')))]"
+          },
           "resources": [
             {
+              "condition": "[not(variables('useExisting'))]",
               "type": "Microsoft.Resources/deployments",
               "apiVersion": "2025-04-01",
               "name": "logAnalytics-deployment",
@@ -3433,21 +3643,21 @@
               "metadata": {
                 "description": "Resource ID of the Log Analytics workspace"
               },
-              "value": "[reference(resourceId('Microsoft.Resources/deployments', 'logAnalytics-deployment'), '2025-04-01').outputs.resourceId.value]"
+              "value": "[if(variables('useExisting'), resourceId('Microsoft.OperationalInsights/workspaces', last(split(parameters('existingWorkspaceId'), '/'))), reference(resourceId('Microsoft.Resources/deployments', 'logAnalytics-deployment'), '2025-04-01').outputs.resourceId.value)]"
             },
             "customerId": {
               "type": "string",
               "metadata": {
                 "description": "Customer ID (workspace ID) for the Log Analytics workspace"
               },
-              "value": "[reference(resourceId('Microsoft.Resources/deployments', 'logAnalytics-deployment'), '2025-04-01').outputs.logAnalyticsWorkspaceId.value]"
+              "value": "[if(variables('useExisting'), reference(resourceId('Microsoft.OperationalInsights/workspaces', last(split(parameters('existingWorkspaceId'), '/'))), '2023-09-01').customerId, reference(resourceId('Microsoft.Resources/deployments', 'logAnalytics-deployment'), '2025-04-01').outputs.logAnalyticsWorkspaceId.value)]"
             },
             "workspaceName": {
               "type": "string",
               "metadata": {
                 "description": "Name of the Log Analytics workspace"
               },
-              "value": "[reference(resourceId('Microsoft.Resources/deployments', 'logAnalytics-deployment'), '2025-04-01').outputs.name.value]"
+              "value": "[if(variables('useExisting'), last(split(parameters('existingWorkspaceId'), '/')), reference(resourceId('Microsoft.Resources/deployments', 'logAnalytics-deployment'), '2025-04-01').outputs.name.value)]"
             }
           }
         }
@@ -3464,13 +3674,16 @@
         },
         "mode": "Incremental",
         "parameters": {
+          "existingApplicationInsightsId": {
+            "value": "[parameters('existingApplicationInsightsId')]"
+          },
           "applicationInsightsName": {
             "value": "[variables('appInsightsName')]"
           },
           "location": {
             "value": "[parameters('location')]"
           },
-          "logAnalyticsWorkspaceId": "[if(not(parameters('useExistingManagedEnvironment')), createObject('value', reference(resourceId('Microsoft.Resources/deployments', 'deploy-log-analytics'), '2025-04-01').outputs.workspaceId.value), createObject('value', ''))]",
+          "logAnalyticsWorkspaceId": "[if(parameters('enableApplicationInsights'), createObject('value', reference(resourceId('Microsoft.Resources/deployments', 'deploy-log-analytics'), '2025-04-01').outputs.workspaceId.value), createObject('value', ''))]",
           "applicationType": {
             "value": "web"
           },
@@ -3496,27 +3709,37 @@
           "metadata": {
             "_generator": {
               "name": "bicep",
-              "version": "0.38.33.27573",
-              "templateHash": "1445426151611140640"
+              "version": "0.40.2.10011",
+              "templateHash": "1261714634471455608"
             }
           },
           "parameters": {
+            "existingApplicationInsightsId": {
+              "type": "string",
+              "defaultValue": "",
+              "metadata": {
+                "description": "Existing Application Insights resource ID (leave empty to create new)"
+              }
+            },
             "applicationInsightsName": {
               "type": "string",
+              "defaultValue": "",
               "metadata": {
-                "description": "Name of the Application Insights resource"
+                "description": "Name of the Application Insights resource (used only when creating new)"
               }
             },
             "location": {
               "type": "string",
+              "defaultValue": "[resourceGroup().location]",
               "metadata": {
-                "description": "Azure region for the Application Insights resource"
+                "description": "Azure region for the Application Insights resource (used only when creating new)"
               }
             },
             "logAnalyticsWorkspaceId": {
               "type": "string",
+              "defaultValue": "",
               "metadata": {
-                "description": "Resource ID of the Log Analytics workspace to link to"
+                "description": "Resource ID of the Log Analytics workspace to link to (used only when creating new)"
               }
             },
             "applicationType": {
@@ -3534,7 +3757,7 @@
               "type": "object",
               "defaultValue": {},
               "metadata": {
-                "description": "Tags to apply to the Application Insights resource"
+                "description": "Tags to apply to the Application Insights resource (used only when creating new)"
               }
             },
             "retentionInDays": {
@@ -3543,7 +3766,7 @@
               "minValue": 30,
               "maxValue": 730,
               "metadata": {
-                "description": "Data retention in days (30-730)"
+                "description": "Data retention in days (30-730) (used only when creating new)"
               }
             },
             "dailyDataCapInGB": {
@@ -3551,14 +3774,14 @@
               "defaultValue": 0,
               "minValue": 0,
               "metadata": {
-                "description": "Daily data cap in GB (0 = no cap)"
+                "description": "Daily data cap in GB (0 = no cap) (used only when creating new)"
               }
             },
             "disableIpMasking": {
               "type": "bool",
               "defaultValue": false,
               "metadata": {
-                "description": "Disable IP masking for detailed telemetry"
+                "description": "Disable IP masking for detailed telemetry (used only when creating new)"
               }
             },
             "samplingPercentage": {
@@ -3567,12 +3790,16 @@
               "minValue": 0,
               "maxValue": 100,
               "metadata": {
-                "description": "Sampling percentage (0-100)"
+                "description": "Sampling percentage (0-100) (used only when creating new)"
               }
             }
           },
+          "variables": {
+            "useExisting": "[not(empty(parameters('existingApplicationInsightsId')))]"
+          },
           "resources": [
             {
+              "condition": "[not(variables('useExisting'))]",
               "type": "Microsoft.Insights/components",
               "apiVersion": "2020-02-02",
               "name": "[parameters('applicationInsightsName')]",
@@ -3591,7 +3818,7 @@
               }
             },
             {
-              "condition": "[greater(parameters('dailyDataCapInGB'), 0)]",
+              "condition": "[and(not(variables('useExisting')), greater(parameters('dailyDataCapInGB'), 0))]",
               "type": "Microsoft.Insights/components/currentbillingfeatures",
               "apiVersion": "2015-05-01",
               "name": "[format('{0}/{1}', parameters('applicationInsightsName'), 'Current')]",
@@ -3614,42 +3841,42 @@
               "metadata": {
                 "description": "Application Insights resource ID"
               },
-              "value": "[resourceId('Microsoft.Insights/components', parameters('applicationInsightsName'))]"
+              "value": "[if(variables('useExisting'), resourceId('Microsoft.Insights/components', last(split(parameters('existingApplicationInsightsId'), '/'))), resourceId('Microsoft.Insights/components', parameters('applicationInsightsName')))]"
             },
             "applicationInsightsName": {
               "type": "string",
               "metadata": {
                 "description": "Application Insights name"
               },
-              "value": "[parameters('applicationInsightsName')]"
+              "value": "[if(variables('useExisting'), last(split(parameters('existingApplicationInsightsId'), '/')), parameters('applicationInsightsName'))]"
             },
             "connectionString": {
               "type": "string",
               "metadata": {
                 "description": "Application Insights connection string"
               },
-              "value": "[reference(resourceId('Microsoft.Insights/components', parameters('applicationInsightsName')), '2020-02-02').ConnectionString]"
+              "value": "[if(variables('useExisting'), reference(resourceId('Microsoft.Insights/components', last(split(parameters('existingApplicationInsightsId'), '/'))), '2020-02-02').ConnectionString, reference(resourceId('Microsoft.Insights/components', parameters('applicationInsightsName')), '2020-02-02').ConnectionString)]"
             },
             "instrumentationKey": {
               "type": "string",
               "metadata": {
                 "description": "Application Insights instrumentation key"
               },
-              "value": "[reference(resourceId('Microsoft.Insights/components', parameters('applicationInsightsName')), '2020-02-02').InstrumentationKey]"
+              "value": "[if(variables('useExisting'), reference(resourceId('Microsoft.Insights/components', last(split(parameters('existingApplicationInsightsId'), '/'))), '2020-02-02').InstrumentationKey, reference(resourceId('Microsoft.Insights/components', parameters('applicationInsightsName')), '2020-02-02').InstrumentationKey)]"
             },
             "appId": {
               "type": "string",
               "metadata": {
                 "description": "Application Insights App ID"
               },
-              "value": "[reference(resourceId('Microsoft.Insights/components', parameters('applicationInsightsName')), '2020-02-02').AppId]"
+              "value": "[if(variables('useExisting'), reference(resourceId('Microsoft.Insights/components', last(split(parameters('existingApplicationInsightsId'), '/'))), '2020-02-02').AppId, reference(resourceId('Microsoft.Insights/components', parameters('applicationInsightsName')), '2020-02-02').AppId)]"
             },
             "workspaceId": {
               "type": "string",
               "metadata": {
                 "description": "Log Analytics workspace ID linked to Application Insights"
               },
-              "value": "[parameters('logAnalyticsWorkspaceId')]"
+              "value": "[if(variables('useExisting'), reference(resourceId('Microsoft.Insights/components', last(split(parameters('existingApplicationInsightsId'), '/'))), '2020-02-02').WorkspaceResourceId, parameters('logAnalyticsWorkspaceId'))]"
             }
           }
         }
@@ -3659,6 +3886,7 @@
       ]
     },
     {
+      "condition": "[parameters('useLocalAcr')]",
       "type": "Microsoft.Resources/deployments",
       "apiVersion": "2025-04-01",
       "name": "deploy-acr",
@@ -3668,6 +3896,9 @@
         },
         "mode": "Incremental",
         "parameters": {
+          "existingRegistryId": {
+            "value": "[parameters('existingContainerRegistryId')]"
+          },
           "registryName": {
             "value": "[variables('acrName')]"
           },
@@ -3690,21 +3921,30 @@
           "metadata": {
             "_generator": {
               "name": "bicep",
-              "version": "0.38.33.27573",
-              "templateHash": "7420141214019156171"
+              "version": "0.40.2.10011",
+              "templateHash": "9778396826150402501"
             }
           },
           "parameters": {
+            "existingRegistryId": {
+              "type": "string",
+              "defaultValue": "",
+              "metadata": {
+                "description": "Existing Container Registry resource ID (leave empty to create new)"
+              }
+            },
             "registryName": {
               "type": "string",
+              "defaultValue": "",
               "metadata": {
-                "description": "Name of the Azure Container Registry"
+                "description": "Name of the Azure Container Registry (used only when creating new)"
               }
             },
             "location": {
               "type": "string",
+              "defaultValue": "[resourceGroup().location]",
               "metadata": {
-                "description": "Location for the Container Registry"
+                "description": "Location for the Container Registry (used only when creating new)"
               }
             },
             "sku": {
@@ -3716,26 +3956,30 @@
                 "Premium"
               ],
               "metadata": {
-                "description": "SKU for the Container Registry"
+                "description": "SKU for the Container Registry (used only when creating new)"
               }
             },
             "adminUserEnabled": {
               "type": "bool",
               "defaultValue": false,
               "metadata": {
-                "description": "Enable admin user"
+                "description": "Enable admin user (used only when creating new)"
               }
             },
             "tags": {
               "type": "object",
               "defaultValue": {},
               "metadata": {
-                "description": "Tags to apply to the registry"
+                "description": "Tags to apply to the registry (used only when creating new)"
               }
             }
           },
+          "variables": {
+            "useExisting": "[not(empty(parameters('existingRegistryId')))]"
+          },
           "resources": [
             {
+              "condition": "[not(variables('useExisting'))]",
               "type": "Microsoft.Resources/deployments",
               "apiVersion": "2025-04-01",
               "name": "acr-deployment",
@@ -6460,21 +6704,21 @@
               "metadata": {
                 "description": "Resource ID of the Container Registry"
               },
-              "value": "[reference(resourceId('Microsoft.Resources/deployments', 'acr-deployment'), '2025-04-01').outputs.resourceId.value]"
+              "value": "[if(variables('useExisting'), resourceId('Microsoft.ContainerRegistry/registries', last(split(parameters('existingRegistryId'), '/'))), reference(resourceId('Microsoft.Resources/deployments', 'acr-deployment'), '2025-04-01').outputs.resourceId.value)]"
             },
             "loginServer": {
               "type": "string",
               "metadata": {
                 "description": "Login server for the Container Registry"
               },
-              "value": "[reference(resourceId('Microsoft.Resources/deployments', 'acr-deployment'), '2025-04-01').outputs.loginServer.value]"
+              "value": "[if(variables('useExisting'), reference(resourceId('Microsoft.ContainerRegistry/registries', last(split(parameters('existingRegistryId'), '/'))), '2023-07-01').loginServer, reference(resourceId('Microsoft.Resources/deployments', 'acr-deployment'), '2025-04-01').outputs.loginServer.value)]"
             },
             "registryName": {
               "type": "string",
               "metadata": {
                 "description": "Name of the Container Registry"
               },
-              "value": "[reference(resourceId('Microsoft.Resources/deployments', 'acr-deployment'), '2025-04-01').outputs.name.value]"
+              "value": "[if(variables('useExisting'), last(split(parameters('existingRegistryId'), '/')), reference(resourceId('Microsoft.Resources/deployments', 'acr-deployment'), '2025-04-01').outputs.name.value)]"
             }
           }
         }
@@ -6490,6 +6734,9 @@
         },
         "mode": "Incremental",
         "parameters": {
+          "existingStorageAccountId": {
+            "value": "[parameters('existingStorageAccountId')]"
+          },
           "storageAccountName": {
             "value": "[variables('storageAcctName')]"
           },
@@ -6512,21 +6759,30 @@
           "metadata": {
             "_generator": {
               "name": "bicep",
-              "version": "0.38.33.27573",
-              "templateHash": "4833307263612597586"
+              "version": "0.40.2.10011",
+              "templateHash": "12671003725631266667"
             }
           },
           "parameters": {
+            "existingStorageAccountId": {
+              "type": "string",
+              "defaultValue": "",
+              "metadata": {
+                "description": "Existing storage account resource ID (leave empty to create new)"
+              }
+            },
             "storageAccountName": {
               "type": "string",
+              "defaultValue": "",
               "metadata": {
-                "description": "Name of the storage account"
+                "description": "Name of the storage account (used only when creating new)"
               }
             },
             "location": {
               "type": "string",
+              "defaultValue": "[resourceGroup().location]",
               "metadata": {
-                "description": "Location for the storage account"
+                "description": "Location for the storage account (used only when creating new)"
               }
             },
             "fileShareName": {
@@ -6549,12 +6805,27 @@
               "type": "object",
               "defaultValue": {},
               "metadata": {
-                "description": "Tags to apply to the storage account"
+                "description": "Tags to apply to the storage account (used only when creating new)"
               }
             }
           },
+          "variables": {
+            "useExisting": "[not(empty(parameters('existingStorageAccountId')))]",
+            "effectiveStorageAccountName": "[if(variables('useExisting'), last(split(parameters('existingStorageAccountId'), '/')), parameters('storageAccountName'))]"
+          },
           "resources": [
             {
+              "condition": "[variables('useExisting')]",
+              "type": "Microsoft.Storage/storageAccounts/fileServices/shares",
+              "apiVersion": "2023-01-01",
+              "name": "[format('{0}/{1}/{2}', variables('effectiveStorageAccountName'), 'default', parameters('fileShareName'))]",
+              "properties": {
+                "shareQuota": "[parameters('fileShareQuotaGiB')]",
+                "enabledProtocols": "SMB"
+              }
+            },
+            {
+              "condition": "[not(variables('useExisting'))]",
               "type": "Microsoft.Resources/deployments",
               "apiVersion": "2025-04-01",
               "name": "storage-deployment",
@@ -11893,14 +12164,14 @@
               "metadata": {
                 "description": "Resource ID of the storage account"
               },
-              "value": "[reference(resourceId('Microsoft.Resources/deployments', 'storage-deployment'), '2025-04-01').outputs.resourceId.value]"
+              "value": "[if(variables('useExisting'), resourceId('Microsoft.Storage/storageAccounts', variables('effectiveStorageAccountName')), reference(resourceId('Microsoft.Resources/deployments', 'storage-deployment'), '2025-04-01').outputs.resourceId.value)]"
             },
             "storageAccountName": {
               "type": "string",
               "metadata": {
                 "description": "Name of the storage account"
               },
-              "value": "[reference(resourceId('Microsoft.Resources/deployments', 'storage-deployment'), '2025-04-01').outputs.name.value]"
+              "value": "[if(variables('useExisting'), variables('effectiveStorageAccountName'), reference(resourceId('Microsoft.Resources/deployments', 'storage-deployment'), '2025-04-01').outputs.name.value)]"
             },
             "fileShareName": {
               "type": "string",
@@ -11914,17 +12185,14 @@
               "metadata": {
                 "description": "Primary endpoints for the storage account"
               },
-              "value": {
-                "blob": "[format('https://{0}.blob.{1}', reference(resourceId('Microsoft.Resources/deployments', 'storage-deployment'), '2025-04-01').outputs.name.value, environment().suffixes.storage)]",
-                "file": "[format('https://{0}.file.{1}', reference(resourceId('Microsoft.Resources/deployments', 'storage-deployment'), '2025-04-01').outputs.name.value, environment().suffixes.storage)]"
-              }
+              "value": "[if(variables('useExisting'), createObject('blob', reference(resourceId('Microsoft.Storage/storageAccounts', variables('effectiveStorageAccountName')), '2023-01-01').primaryEndpoints.blob, 'file', reference(resourceId('Microsoft.Storage/storageAccounts', variables('effectiveStorageAccountName')), '2023-01-01').primaryEndpoints.file), createObject('blob', format('https://{0}.blob.{1}', reference(resourceId('Microsoft.Resources/deployments', 'storage-deployment'), '2025-04-01').outputs.name.value, environment().suffixes.storage), 'file', format('https://{0}.file.{1}', reference(resourceId('Microsoft.Resources/deployments', 'storage-deployment'), '2025-04-01').outputs.name.value, environment().suffixes.storage)))]"
             }
           }
         }
       }
     },
     {
-      "condition": "[not(parameters('useExistingManagedEnvironment'))]",
+      "condition": "[not(variables('useExistingContainerEnv'))]",
       "type": "Microsoft.Resources/deployments",
       "apiVersion": "2025-04-01",
       "name": "deploy-container-environment",
@@ -11940,7 +12208,9 @@
           "location": {
             "value": "[parameters('location')]"
           },
-          "logAnalyticsWorkspaceId": "[if(not(parameters('useExistingManagedEnvironment')), createObject('value', reference(resourceId('Microsoft.Resources/deployments', 'deploy-log-analytics'), '2025-04-01').outputs.workspaceId.value), createObject('value', ''))]",
+          "logAnalyticsWorkspaceId": {
+            "value": "[reference(resourceId('Microsoft.Resources/deployments', 'deploy-log-analytics'), '2025-04-01').outputs.workspaceId.value]"
+          },
           "storageAccountName": {
             "value": "[reference(resourceId('Microsoft.Resources/deployments', 'deploy-storage'), '2025-04-01').outputs.storageAccountName.value]"
           },
@@ -11963,8 +12233,8 @@
           "metadata": {
             "_generator": {
               "name": "bicep",
-              "version": "0.38.33.27573",
-              "templateHash": "5389390238532329769"
+              "version": "0.40.2.10011",
+              "templateHash": "9014773299824070746"
             }
           },
           "parameters": {
@@ -12694,20 +12964,17 @@
       ]
     },
     {
-      "condition": "[parameters('useExistingManagedEnvironment')]",
+      "condition": "[variables('useExistingContainerEnv')]",
       "type": "Microsoft.Resources/deployments",
       "apiVersion": "2025-04-01",
       "name": "add-storage-mount-existing-env",
-      "resourceGroup": "[parameters('existingManagedEnvironmentResourceGroup')]",
       "properties": {
         "expressionEvaluationOptions": {
           "scope": "inner"
         },
         "mode": "Incremental",
         "parameters": {
-          "existingEnvironmentName": {
-            "value": "[parameters('existingManagedEnvironmentName')]"
-          },
+          "existingEnvironmentName": "[if(not(empty(parameters('existingContainerEnvironmentId'))), createObject('value', last(split(parameters('existingContainerEnvironmentId'), '/'))), createObject('value', parameters('existingManagedEnvironmentName')))]",
           "storageAccountName": {
             "value": "[reference(resourceId('Microsoft.Resources/deployments', 'deploy-storage'), '2025-04-01').outputs.storageAccountName.value]"
           },
@@ -12724,8 +12991,8 @@
           "metadata": {
             "_generator": {
               "name": "bicep",
-              "version": "0.38.33.27573",
-              "templateHash": "6385909448365553843"
+              "version": "0.40.2.10011",
+              "templateHash": "4162992820275581170"
             }
           },
           "parameters": {
@@ -12801,18 +13068,14 @@
           "location": {
             "value": "[parameters('location')]"
           },
-          "environmentId": "[if(parameters('useExistingManagedEnvironment'), createObject('value', extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('existingManagedEnvironmentResourceGroup')), 'Microsoft.App/managedEnvironments', parameters('existingManagedEnvironmentName'))), if(not(parameters('useExistingManagedEnvironment')), createObject('value', reference(resourceId('Microsoft.Resources/deployments', 'deploy-container-environment'), '2025-04-01').outputs.environmentId.value), createObject('value', '')))]",
+          "environmentId": "[if(variables('useExistingContainerEnv'), createObject('value', resourceId('Microsoft.App/managedEnvironments', if(not(empty(parameters('existingContainerEnvironmentId'))), last(split(parameters('existingContainerEnvironmentId'), '/')), parameters('existingManagedEnvironmentName')))), createObject('value', reference(resourceId('Microsoft.Resources/deployments', 'deploy-container-environment'), '2025-04-01').outputs.environmentId.value))]",
           "storageMountName": {
             "value": "clamav-db-storage"
           },
-          "containerImage": {
-            "value": "[format('{0}/{1}:{2}', reference(resourceId('Microsoft.Resources/deployments', 'deploy-acr'), '2025-04-01').outputs.loginServer.value, parameters('applicationName'), parameters('containerImageTag'))]"
-          },
-          "containerRegistryServer": {
-            "value": "[reference(resourceId('Microsoft.Resources/deployments', 'deploy-acr'), '2025-04-01').outputs.loginServer.value]"
-          },
+          "containerImage": "[if(parameters('useLocalAcr'), createObject('value', format('{0}/{1}:{2}', reference(resourceId('Microsoft.Resources/deployments', 'deploy-acr'), '2025-04-01').outputs.loginServer.value, parameters('applicationName'), parameters('containerImageTag'))), if(contains(parameters('dockerHubImage'), ':'), createObject('value', parameters('dockerHubImage')), createObject('value', format('{0}:{1}', parameters('dockerHubImage'), parameters('containerImageTag')))))]",
+          "containerRegistryServer": "[if(parameters('useLocalAcr'), createObject('value', reference(resourceId('Microsoft.Resources/deployments', 'deploy-acr'), '2025-04-01').outputs.loginServer.value), createObject('value', ''))]",
           "useManagedIdentityForRegistry": {
-            "value": true
+            "value": "[parameters('useLocalAcr')]"
           },
           "cpuCores": {
             "value": "[parameters('containerCpuCores')]"
@@ -12858,8 +13121,8 @@
           "metadata": {
             "_generator": {
               "name": "bicep",
-              "version": "0.38.33.27573",
-              "templateHash": "17363978293845940464"
+              "version": "0.40.2.10011",
+              "templateHash": "9069354960775256830"
             }
           },
           "parameters": {
@@ -13026,7 +13289,7 @@
             }
           },
           "variables": {
-            "registries": "[if(parameters('useManagedIdentityForRegistry'), createArray(createObject('server', parameters('containerRegistryServer'), 'identity', 'system')), if(empty(parameters('containerRegistryUsername')), createArray(), createArray(createObject('server', parameters('containerRegistryServer'), 'username', parameters('containerRegistryUsername'), 'passwordSecretRef', 'registry-password'))))]"
+            "registries": "[if(and(parameters('useManagedIdentityForRegistry'), not(empty(parameters('containerRegistryServer')))), createArray(createObject('server', parameters('containerRegistryServer'), 'identity', 'system')), if(and(not(empty(parameters('containerRegistryUsername'))), not(empty(parameters('containerRegistryServer')))), createArray(createObject('server', parameters('containerRegistryServer'), 'username', parameters('containerRegistryUsername'), 'passwordSecretRef', 'registry-password')), createArray()))]"
           },
           "resources": [
             {
@@ -13169,7 +13432,7 @@
                               "scheme": "HTTP"
                             },
                             "initialDelaySeconds": 60,
-                            "periodSeconds": 10,
+                            "periodSeconds": 30,
                             "timeoutSeconds": 5,
                             "failureThreshold": 3
                           },
@@ -13180,7 +13443,7 @@
                               "port": 8080,
                               "scheme": "HTTP"
                             },
-                            "initialDelaySeconds": 1,
+                            "initialDelaySeconds": 60,
                             "periodSeconds": 10,
                             "timeoutSeconds": 5,
                             "failureThreshold": 10
@@ -13212,7 +13475,7 @@
                     "value": "http"
                   },
                   "ingressAllowInsecure": {
-                    "value": false
+                    "value": true
                   },
                   "scaleMinReplicas": {
                     "value": "[parameters('minReplicas')]"
@@ -14288,16 +14551,16 @@
     "containerRegistryLoginServer": {
       "type": "string",
       "metadata": {
-        "description": "Container Registry login server"
+        "description": "Container Registry login server (empty if using Docker Hub)"
       },
-      "value": "[reference(resourceId('Microsoft.Resources/deployments', 'deploy-acr'), '2025-04-01').outputs.loginServer.value]"
+      "value": "[if(parameters('useLocalAcr'), reference(resourceId('Microsoft.Resources/deployments', 'deploy-acr'), '2025-04-01').outputs.loginServer.value, format('Using Docker Hub: {0}', parameters('dockerHubImage')))]"
     },
     "containerRegistryName": {
       "type": "string",
       "metadata": {
-        "description": "Container Registry name"
+        "description": "Container Registry name (N/A if using Docker Hub)"
       },
-      "value": "[reference(resourceId('Microsoft.Resources/deployments', 'deploy-acr'), '2025-04-01').outputs.registryName.value]"
+      "value": "[if(parameters('useLocalAcr'), reference(resourceId('Microsoft.Resources/deployments', 'deploy-acr'), '2025-04-01').outputs.registryName.value, 'N/A - using Docker Hub')]"
     },
     "storageAccountName": {
       "type": "string",
@@ -14318,7 +14581,7 @@
       "metadata": {
         "description": "Container Apps environment name"
       },
-      "value": "[if(parameters('useExistingManagedEnvironment'), parameters('existingManagedEnvironmentName'), format('cae-{0}-{1}', parameters('applicationName'), parameters('environmentName')))]"
+      "value": "[if(variables('useExistingContainerEnv'), if(not(empty(parameters('existingContainerEnvironmentId'))), last(split(parameters('existingContainerEnvironmentId'), '/')), parameters('existingManagedEnvironmentName')), variables('containerEnvironmentName'))]"
     },
     "containerAppName": {
       "type": "string",
@@ -14330,9 +14593,9 @@
     "logAnalyticsWorkspaceName": {
       "type": "string",
       "metadata": {
-        "description": "Log Analytics workspace name (if created)"
+        "description": "Log Analytics workspace name"
       },
-      "value": "[if(parameters('useExistingManagedEnvironment'), 'N/A - using existing environment', variables('logAnalyticsName'))]"
+      "value": "[if(not(empty(parameters('existingLogAnalyticsWorkspaceId'))), 'Using existing workspace', if(variables('useExistingContainerEnv'), 'Using existing environment workspace', variables('logAnalyticsName')))]"
     },
     "containerAppPrincipalId": {
       "type": "string",
@@ -14369,19 +14632,26 @@
       },
       "value": "[if(parameters('enableApplicationInsights'), reference(resourceId('Microsoft.Resources/deployments', 'deploy-app-insights'), '2025-04-01').outputs.appId.value, 'Not enabled')]"
     },
+    "actionGroupId": {
+      "type": "string",
+      "metadata": {
+        "description": "Action Group ID for malware alerts (if configured)"
+      },
+      "value": "[if(not(empty(parameters('malwareAlertActionGroupId'))), parameters('malwareAlertActionGroupId'), if(variables('shouldCreateActionGroup'), reference(resourceId('Microsoft.Resources/deployments', 'deploy-action-group'), '2025-04-01').outputs.actionGroupId.value, 'Not configured'))]"
+    },
     "malwareAlertName": {
       "type": "string",
       "metadata": {
         "description": "Malware detection alert name (if enabled)"
       },
-      "value": "[if(and(and(parameters('enableMalwareAlerts'), parameters('enableApplicationInsights')), not(empty(parameters('malwareAlertActionGroupId')))), format('{0}-malware-detection-alert', parameters('applicationName')), 'Not enabled')]"
+      "value": "[if(and(and(parameters('enableMalwareAlerts'), parameters('enableApplicationInsights')), or(not(empty(parameters('malwareAlertActionGroupId'))), variables('shouldCreateActionGroup'))), format('{0}-malware-detection-alert', parameters('applicationName')), 'Not enabled')]"
     },
     "malwareAlertId": {
       "type": "string",
       "metadata": {
         "description": "Malware detection alert ID (if enabled)"
       },
-      "value": "[if(and(and(parameters('enableMalwareAlerts'), parameters('enableApplicationInsights')), not(empty(parameters('malwareAlertActionGroupId')))), resourceId('Microsoft.Insights/metricAlerts', format('{0}-malware-detection-alert', parameters('applicationName'))), 'Not enabled')]"
+      "value": "[if(and(and(parameters('enableMalwareAlerts'), parameters('enableApplicationInsights')), or(not(empty(parameters('malwareAlertActionGroupId'))), variables('shouldCreateActionGroup'))), resourceId('Microsoft.Insights/scheduledQueryRules', format('{0}-malware-detection-alert', parameters('applicationName'))), 'Not enabled')]"
     }
   }
 }
