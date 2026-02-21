@@ -18,11 +18,16 @@ RUN dotnet publish Arcus.ClamAV/Arcus.ClamAV.csproj -c Release -p:CI=true -o /ap
 # Final stage: ASP.NET runtime + ClamAV
 # =========================
 FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS final
+
+# Build arg for Swagger configuration (default: disabled)
+ARG ENABLE_SWAGGER=false
+
 ENV ASPNETCORE_URLS=http://0.0.0.0:8080 \
 CLAMD_HOST=127.0.0.1 \
 CLAMD_PORT=3310 \
 MAX_FILE_SIZE_MB=200 \
-FRESHCLAM_DELAY_SECS=0
+FRESHCLAM_DELAY_SECS=0 \
+Swagger__Enabled=${ENABLE_SWAGGER}
 
 
 # Install ClamAV packages

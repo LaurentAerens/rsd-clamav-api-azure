@@ -97,7 +97,7 @@ Configure these secrets in your GitHub repository settings (**Settings** → **S
 The release workflow performs these automated steps:
 
 1. **Validate** - Checks version format and branch rules
-2. **Build Docker Image** - Multi-stage build with cache optimization
+2. **Build Docker Image** - Multi-stage build with cache optimization (creates both standard and swagger-enabled variants)
 3. **Push to Docker Hub** - Tags appropriately (latest for stable)
 4. **Create Git Tag** - Semantic version tag (e.g., v1.2.3)
 5. **Generate Release Notes** - Includes commit history and pull request info
@@ -107,38 +107,68 @@ The release workflow performs these automated steps:
 
 ### Stable Release (v1.2.3)
 ```bash
-docker pull myusername/clamav-api:1.2.3    # Specific version
-docker pull myusername/clamav-api:latest   # Latest stable
+docker pull myusername/clamav-api:1.2.3          # Specific version (Swagger disabled)
+docker pull myusername/clamav-api:1.2.3-swagger  # Swagger-enabled variant
+docker pull myusername/clamav-api:latest         # Latest stable
 ```
 
 ### Pre-release (v1.2.3-alpha)
 ```bash
-docker pull myusername/clamav-api:1.2.3-alpha   # Specific alpha version
+docker pull myusername/clamav-api:1.2.3-alpha          # Specific alpha version
+docker pull myusername/clamav-api:1.2.3-alpha-swagger  # Alpha with Swagger enabled
 ```
 
 ### Pre-release (v1.2.3-beta)
 ```bash
-docker pull myusername/clamav-api:1.2.3-beta    # Specific beta version
+docker pull myusername/clamav-api:1.2.3-beta          # Specific beta version
+docker pull myusername/clamav-api:1.2.3-beta-swagger  # Beta with Swagger enabled
 ```
+
+## Image Variants
+
+Each release creates **two image variants**:
+
+1. **Standard Image** (`clamav-api:1.2.3`)
+   - Swagger UI **disabled** by default
+   - Production-ready and secure
+   - Recommended for production deployments
+
+2. **Swagger-Enabled Variant** (`clamav-api:1.2.3-swagger`)
+   - Swagger UI **enabled** at `/swagger`
+   - Ideal for development, testing, and API exploration
+   - Not recommended for production use
 
 ## Using Released Containers
 
 ### Pull and Run Stable
 ```bash
+# Standard image (production)
 docker pull myusername/clamav-api:1.2.3
 docker run -p 8080:8080 myusername/clamav-api:1.2.3
+
+# Swagger-enabled (testing)
+docker pull myusername/clamav-api:1.2.3-swagger
+docker run -p 8080:8080 myusername/clamav-api:1.2.3-swagger
+# Access Swagger at http://localhost:8080/swagger
 ```
 
 ### Pull and Run Latest Stable
 ```bash
 docker pull myusername/clamav-api:latest
 docker run -p 8080:8080 myusername/clamav-api:latest
+
+# Or enable Swagger on standard image
+docker run -p 8080:8080 -e Swagger__Enabled=true myusername/clamav-api:latest
 ```
 
 ### Pull and Run Pre-release
 ```bash
 docker pull myusername/clamav-api:1.2.3-alpha
 docker run -p 8080:8080 myusername/clamav-api:1.2.3-alpha
+
+# Or with Swagger enabled
+docker pull myusername/clamav-api:1.2.3-alpha-swagger
+docker run -p 8080:8080 myusername/clamav-api:1.2.3-alpha-swagger
 ```
 
 ## What Gets Created in Each Release
@@ -159,7 +189,9 @@ v1.0.0          # Stable release tag
   - Links to commits
 
 ### Docker Images
-Tagged on Docker Hub and ready to pull
+Tagged on Docker Hub and ready to pull:
+- Standard image: `myusername/clamav-api:1.0.0`
+- Swagger variant: `myusername/clamav-api:1.0.0-swagger`
 
 ## Release Notes Contents
 

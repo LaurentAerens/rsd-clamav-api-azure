@@ -112,6 +112,17 @@ jobs:
           build-args: |
             CI=true
 
+      - name: Build and Push Swagger-Enabled Docker Image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: ${{ secrets.DOCKER_REGISTRY_USERNAME }}/clamav-api:${{ env.DOCKER_TAG }}-swagger
+          cache-from: type=gha
+          build-args: |
+            CI=true
+            ENABLE_SWAGGER=true
+
       - name: Create Git Tag
         run: |
           git config user.name "github-actions[bot]"
@@ -144,7 +155,13 @@ jobs:
           RELEASE_NOTES+=$'\n'
           RELEASE_NOTES+="\`\`\`bash"
           RELEASE_NOTES+=$'\n'
+          RELEASE_NOTES+="# Standard image (Swagger disabled)"
+          RELEASE_NOTES+=$'\n'
           RELEASE_NOTES+="docker pull $REGISTRY_USERNAME/clamav-api:$VERSION"
+          RELEASE_NOTES+=$'\n\n'
+          RELEASE_NOTES+="# Swagger-enabled variant (for testing/development)"
+          RELEASE_NOTES+=$'\n'
+          RELEASE_NOTES+="docker pull $REGISTRY_USERNAME/clamav-api:$VERSION-swagger"
           RELEASE_NOTES+=$'\n'
           RELEASE_NOTES+="\`\`\`"
           RELEASE_NOTES+=$'\n\n'
@@ -204,9 +221,13 @@ jobs:
           echo "**Docker Tag:** \`$DOCKER_TAG\`"
           echo "**Git Tag:** \`$GIT_TAG\`"
           echo ""
-          echo "**Docker Image:**"
+          echo "**Docker Images:**"
           echo "\`\`\`"
+          echo "# Standard (Swagger disabled)"
           echo "docker pull $REGISTRY_USERNAME/clamav-api:$DOCKER_TAG"
+          echo ""
+          echo "# Swagger-enabled variant"
+          echo "docker pull $REGISTRY_USERNAME/clamav-api:$DOCKER_TAG-swagger"
           echo "\`\`\`"
           echo ""
           if [[ "$CREATE_RELEASE" == "true" ]]; then

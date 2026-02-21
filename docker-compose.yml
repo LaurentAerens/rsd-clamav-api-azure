@@ -5,6 +5,8 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      args:
+        ENABLE_SWAGGER: true
     container_name: clamav-api
     ports:
       - "8080:8080"
