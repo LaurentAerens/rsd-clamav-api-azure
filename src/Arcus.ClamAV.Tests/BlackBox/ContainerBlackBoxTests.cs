@@ -377,10 +377,10 @@ public class ContainerBlackBoxTests
             ""level1"": {
                 ""level2"": {
                     ""level3"": {
-                        ""data"": ""anVzdCBzb21lIHJhbmRvbSBzdHJpbmc="",
+                        ""data"": ""anVzdCBzb21lIHJhbmRvbSBzdHJpbmcgaGVyZQ=="",
                         ""items"": [
-                            { ""content"": ""Y2xlYW4gZGF0YQ=="" },
-                            { ""content"": ""bW9yZSBjbGVhbiBkYXRh"" }
+                            { ""content"": ""dGhpcyBpcyBzb21lIGNsZWFuIGRhdGE0vnjbmdvZw=="" },
+                            { ""content"": ""YW5vdGhlciBzbXJhc3QgY2xlYW4gZGF0YSBzdHJpbmc="" }
                         ]
                     }
                 }
@@ -397,7 +397,7 @@ public class ContainerBlackBoxTests
         var result = await response.Content.ReadFromJsonAsync<JsonScanResult>();
         result.ShouldNotBeNull();
         result!.Status.ShouldBe("clean");
-        result.Base64ItemsFound.ShouldBe(3);
+        result.Base64ItemsFound.ShouldBe(3); // All three strings meet the minimum length requirement and decode successfully
     }
 
     /// <summary>
