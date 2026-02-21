@@ -9,7 +9,7 @@ namespace Arcus.ClamAV.Services;
 public partial class JsonBase64ExtractorService : IJsonBase64ExtractorService
 {
     private readonly ILogger<JsonBase64ExtractorService> _logger;
-    private const int MinBase64Length = 100; // Minimum length to consider as potential base64 content
+    private const int MinBase64Length = 20; // Minimum length to consider as potential base64 content
 
     public JsonBase64ExtractorService(ILogger<JsonBase64ExtractorService> logger)
     {
