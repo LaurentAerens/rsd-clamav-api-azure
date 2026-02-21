@@ -25,26 +25,33 @@ param applicationName = 'clamav-api'
 // ========================================
 // AUTHENTICATION PARAMETERS
 // ========================================
-// If enableAuthentication is true, you must provide aadClientId
-// See docs/azure-deployment.md for AAD app registration steps
+// Entra ID authentication enables Azure resources (APIM, Logic Apps, Function Apps, etc.)
+// to authenticate to your Container App using their managed identities.
+//
+// Quick Setup:
+//   1. Run: .\scripts\create-app-registration.ps1 -EnvironmentName <env>
+//   2. Copy the Client ID output to aadClientId below
+//   3. Deploy
+//   4. Azure resources request tokens with resource/scope = <aadClientId>
+//
+// For development without authentication: set enableAuthentication = false
 
-// Enable Azure AD authentication via EasyAuth
+// Enable Entra ID authentication (recommended for production)
 param enableAuthentication = true
 
-// Azure AD Client ID (Application ID from your app registration)
-// REQUIRED if enableAuthentication = true
+// Azure AD App Registration Client ID
+// This defines WHO the calling resource is requesting a token FOR (the audience)
+// Required when enableAuthentication = true
 // Example: '12345678-1234-1234-1234-123456789abc'
-param aadClientId = ''  // TODO: Replace with your Azure AD App Client ID
+param aadClientId = ''  // TODO: Run create-app-registration.ps1 and paste Client ID here
 
-// Azure AD Tenant ID (defaults to current tenant)
-// Can be found in Azure Portal > Azure Active Directory > Overview
-// Example: '87654321-4321-4321-4321-cba987654321'
-// param aadTenantId = '00000000-0000-0000-0000-000000000000'  // Uncomment and set if different from deployment tenant
+// Azure AD Tenant ID (optional - defaults to current tenant)
+// Only set if app registration is in a different tenant
+// param aadTenantId = '00000000-0000-0000-0000-000000000000'
 
-// Azure AD Audience for token validation
-// Usually same as aadClientId or 'api://{clientId}'
-// Leave empty to default to aadClientId
-// param aadAudience = 'api://12345678-1234-1234-1234-123456789abc'  // Uncomment if using custom audience
+// Azure AD Audience (optional - defaults to aadClientId)
+// Set if using custom audience like 'api://{clientId}'
+// param aadAudience = 'api://12345678-1234-1234-1234-123456789abc'
 
 // ========================================
 // EXISTING ENVIRONMENT (OPTIONAL)

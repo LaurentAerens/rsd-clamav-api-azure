@@ -17,9 +17,12 @@ param applicationName = 'clamav-api'
 // ========================================
 // AUTHENTICATION PARAMETERS
 // ========================================
+// Choose authentication method:
+// - Entra ID (Azure AD): Provide aadClientId from your app registration
+// - No Authentication: Leave aadClientId empty for public endpoints
 
 param enableAuthentication = true
-param aadClientId = ''  // TODO: Replace with your Azure AD App Client ID
+param aadClientId = ''  // TODO: Replace with your Azure AD App Client ID (or leave empty for no auth)
 
 // ========================================
 // CONTAINER APP CONFIGURATION

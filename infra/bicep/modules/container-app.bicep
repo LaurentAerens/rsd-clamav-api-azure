@@ -105,9 +105,9 @@ module containerApp 'br/public:avm/res/app/container-app:0.11.0' = {
     environmentResourceId: environmentId
     tags: tags
     
-    // Managed identity for ACR pull
+    // Managed identity - enable if needed for ACR pull OR for authentication
     managedIdentities: {
-      systemAssigned: useManagedIdentityForRegistry
+      systemAssigned: useManagedIdentityForRegistry || enableAuthentication
     }
     
     // Container configuration
@@ -260,8 +260,11 @@ module containerApp 'br/public:avm/res/app/container-app:0.11.0' = {
   }
 }
 
-// Configure EasyAuth if enabled
-resource containerAppAuth 'Microsoft.App/containerApps/authConfigs@2024-03-01' = if (enableAuthentication && !empty(aadClientId)) {
+// Configure EasyAuth for Azure AD authentication (Entra ID)
+// Only deployed when both enableAuthentication is true AND aadClientId is provided
+// Note: aadClientId is required because it defines the audience (who the token is for)
+// Calling resources (APIM, Logic Apps, etc.) request tokens for this client ID
+resource containerAppAuthAzureAd 'Microsoft.App/containerApps/authConfigs@2024-03-01' = if (enableAuthentication && !empty(aadClientId)) {
   name: '${containerAppName}/current'
   dependsOn: [
     containerApp
@@ -295,6 +298,11 @@ resource containerAppAuth 'Microsoft.App/containerApps/authConfigs@2024-03-01' =
         enabled: true
       }
     }
+    httpSettings: {
+      routes: {
+        apiPrefix: '/.auth'
+      }
+    }
   }
 }
 
@@ -308,4 +316,4 @@ output containerAppName string = containerApp.outputs.name
 output fqdn string = containerApp.outputs.fqdn
 
 @description('System-assigned managed identity principal ID')
-output principalId string = useManagedIdentityForRegistry ? containerApp.outputs.systemAssignedMIPrincipalId : ''
+output principalId string = (useManagedIdentityForRegistry || enableAuthentication) ? containerApp.outputs.systemAssignedMIPrincipalId : ''

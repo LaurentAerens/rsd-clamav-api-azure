@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.40.2.10011",
-      "templateHash": "6807353617355572310"
+      "templateHash": "9876788294859531230"
     }
   },
   "parameters": {
@@ -235,7 +235,7 @@
       "type": "bool",
       "defaultValue": true,
       "metadata": {
-        "description": "Enable Azure AD authentication via Container Apps EasyAuth"
+        "description": "Enable authentication via Container Apps EasyAuth (Entra ID)"
       }
     },
     "aadTenantId": {
@@ -249,7 +249,7 @@
       "type": "string",
       "defaultValue": "",
       "metadata": {
-        "description": "Azure AD client ID / application ID (required if authentication is enabled)"
+        "description": "Azure AD client ID / application ID (required if authentication is enabled). Leave empty for no authentication."
       }
     },
     "aadAudience": {
@@ -13122,7 +13122,7 @@
             "_generator": {
               "name": "bicep",
               "version": "0.40.2.10011",
-              "templateHash": "9069354960775256830"
+              "templateHash": "7826534333330005415"
             }
           },
           "parameters": {
@@ -13321,6 +13321,11 @@
                   "tokenStore": {
                     "enabled": true
                   }
+                },
+                "httpSettings": {
+                  "routes": {
+                    "apiPrefix": "/.auth"
+                  }
                 }
               },
               "dependsOn": [
@@ -13351,7 +13356,7 @@
                   },
                   "managedIdentities": {
                     "value": {
-                      "systemAssigned": "[parameters('useManagedIdentityForRegistry')]"
+                      "systemAssigned": "[or(parameters('useManagedIdentityForRegistry'), parameters('enableAuthentication'))]"
                     }
                   },
                   "containers": {
@@ -14521,7 +14526,7 @@
               "metadata": {
                 "description": "System-assigned managed identity principal ID"
               },
-              "value": "[if(parameters('useManagedIdentityForRegistry'), reference(resourceId('Microsoft.Resources/deployments', 'containerApp-deployment'), '2025-04-01').outputs.systemAssignedMIPrincipalId.value, '')]"
+              "value": "[if(or(parameters('useManagedIdentityForRegistry'), parameters('enableAuthentication')), reference(resourceId('Microsoft.Resources/deployments', 'containerApp-deployment'), '2025-04-01').outputs.systemAssignedMIPrincipalId.value, '')]"
             }
           }
         }

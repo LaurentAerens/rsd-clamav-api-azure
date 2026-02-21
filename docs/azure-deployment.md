@@ -107,59 +107,87 @@ The deployment creates the following infrastructure:
 
 ## Step-by-Step Deployment
 
-### 1. Azure AD App Registration
+### 1. Authentication Setup (Optional but Recommended)
 
-Create an Azure AD app registration for authentication (skip if `enableAuthentication=false`).
+Configure Entra ID authentication to allow other Azure resources (APIM, Logic Apps, Functions) to securely access your Container App using managed identities.
 
-#### Option A: Using Azure Portal
+#### Why is aadClientId Needed?
 
-1. Navigate to **Azure Active Directory** > **App registrations**
-2. Click **New registration**
-3. Configure:
-   - **Name**: `ClamAV API - Production`
-   - **Supported account types**: Accounts in this organizational directory only
-   - **Redirect URI**: Leave empty (EasyAuth handles this)
-4. Click **Register**
-5. Copy the **Application (client) ID** from the Overview page
-6. Copy the **Directory (tenant) ID** from the Overview page
+The `aadClientId` defines the **audience** - it tells EasyAuth "tokens must be issued FOR this app." When a calling resource (like APIM) requests a token, it says "I need a token for `<aadClientId>`", and EasyAuth validates that the token's audience matches.
 
-#### Option B: Using Azure CLI
+**Without it**: EasyAuth doesn't know what audience to validate, so any valid Entra ID token could work (security risk).
+
+#### Create App Registration
+
+**Option A: Using Helper Script (Recommended)**
+
+```powershell
+# From repository root
+.\scripts\create-app-registration.ps1 -EnvironmentName prod
+
+# Output will show:
+# Client ID: 12345678-1234-1234-1234-123456789abc
+```
+
+**Option B: Manual Azure CLI**
 
 ```bash
-# Create app registration
 az ad app create \
   --display-name "ClamAV API - Production" \
   --sign-in-audience AzureADMyOrg
 
-# Get the client ID
 CLIENT_ID=$(az ad app list \
-  --display-name "ClamAV API - Production" \
+ --display-name "ClamAV API - Production" \
   --query "[0].appId" -o tsv)
 
-# Get tenant ID
 TENANT_ID=$(az account show --query tenantId -o tsv)
 
 echo "Client ID: $CLIENT_ID"
 echo "Tenant ID: $TENANT_ID"
-
-# Save these values!
 ```
 
-#### Configure API Permissions (Optional)
+**Save these values** for your deployment parameters:
+```bicep
+param enableAuthentication = true
+param aadClientId = '<YOUR_CLIENT_ID>'
+```
 
-If your app needs to call other APIs:
+#### How Other Azure Resources Authenticate
 
+After deployment, calling resources use their managed identities:
+
+**Azure API Management:**
+```xml
+<inbound>
+  <authentication-managed-identity resource="<YOUR_CLIENT_ID>" />
+</inbound>
+```
+
+**Logic Apps:**
+- HTTP action → Authentication: "Managed Identity"
+- Audience: `<YOUR_CLIENT_ID>` or `api://<YOUR_CLIENT_ID>`
+
+**Azure Functions / App Service:**
+```csharp
+var credential = new DefaultAzureCredential();
+var token = await credential.GetTokenAsync(
+    new TokenRequestContext(new[] { "<YOUR_CLIENT_ID>/.default" }));
+```
+
+**Azure CLI (for testing):**
 ```bash
-# Example: Add Microsoft Graph API permissions
-APP_OBJECT_ID=$(az ad app list \
-  --display-name "ClamAV API - Production" \
-  --query "[0].id" -o tsv)
-
-az ad app permission add \
-  --id $APP_OBJECT_ID \
-  --api 00000003-0000-0000-c000-000000000000 \  # Microsoft Graph
-  --api-permissions e1fe6dd8-ba31-4d61-89e7-88639da4683d=Scope  # User.Read
+TOKEN=$(az account get-access-token --resource <YOUR_CLIENT_ID> --query accessToken -o tsv)
+curl -H "Authorization: Bearer $TOKEN" https://your-app.azurecontainers.io/scan
 ```
+
+#### Disable Authentication (Development Only)
+
+For local development or testing:
+```bicep
+param enableAuthentication = false
+```
+
+**Warning**: Never use in production. All endpoints become public.
 
 ---
 

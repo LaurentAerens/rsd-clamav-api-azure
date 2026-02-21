@@ -1,0 +1,91 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentParameters.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "environmentName": {
+      "value": "dev"
+    },
+    "location": {
+      "value": "westeurope"
+    },
+    "applicationName": {
+      "value": "cav"
+    },
+    "enableAuthentication": {
+      "value": true
+    },
+    "aadClientId": {
+      "value": ""
+    },
+    "aadTenantId": {
+      "value": ""
+    },
+    "aadAudience": {
+      "value": ""
+    },
+    "apiKeySecretName": {
+      "value": ""
+    },
+    "apiKeyHeaderName": {
+      "value": "X-API-Key"
+    },
+    "allowPublicHealthEndpoints": {
+      "value": true
+    },
+    "useLocalAcr": {
+      "value": false
+    },
+    "dockerHubImage": {
+      "value": "laurentaerenscodit/clamav-api:1.0.0-swagger"
+    },
+    "containerImageTag": {
+      "value": "latest"
+    },
+    "containerCpuCores": {
+      "value": "2.0"
+    },
+    "containerMemory": {
+      "value": "4.0Gi"
+    },
+    "minReplicas": {
+      "value": 1
+    },
+    "maxReplicas": {
+      "value": 5
+    },
+    "maxFileSizeMB": {
+      "value": 200
+    },
+    "maxConcurrentWorkers": {
+      "value": 4
+    },
+    "aspNetCoreEnvironment": {
+      "value": "Development"
+    },
+    "clamavFileShareName": {
+      "value": "clamav-database"
+    },
+    "fileShareQuotaGiB": {
+      "value": 5
+    },
+    "enableApplicationInsights": {
+      "value": true
+    },
+    "appInsightsRetentionDays": {
+      "value": 90
+    },
+    "enableMalwareAlerts": {
+      "value": false
+    },
+    "malwareAlertActionGroupId": {
+      "value": ""
+    },
+    "tags": {
+      "value": {
+        "Environment": "dev",
+        "Application": "clamav-api",
+        "ManagedBy": "Bicep"
+      }
+    }
+  }
+}

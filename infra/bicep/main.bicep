@@ -151,16 +151,16 @@ param maxConcurrentWorkers int = 4
 param aspNetCoreEnvironment string = 'Production'
 
 // ========================================
-// Authentication Parameters (Azure AD EasyAuth)
+// Authentication Parameters (Entra ID / Azure AD)
 // ========================================
 
-@description('Enable Azure AD authentication via Container Apps EasyAuth')
+@description('Enable authentication via Container Apps EasyAuth (Entra ID)')
 param enableAuthentication bool = true
 
 @description('Azure AD tenant ID (required if authentication is enabled)')
 param aadTenantId string = tenant().tenantId
 
-@description('Azure AD client ID / application ID (required if authentication is enabled)')
+@description('Azure AD client ID / application ID (required if authentication is enabled). Leave empty for no authentication.')
 param aadClientId string = ''
 
 @description('Azure AD audience for token validation (defaults to client ID if not specified)')

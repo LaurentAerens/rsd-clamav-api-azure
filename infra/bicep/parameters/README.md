@@ -111,6 +111,99 @@ Then update your parameter file:
 param containerImageTag = 'latest'  // or specific version like '1.0.0'
 ```
 
+## Authentication Configuration
+
+The ClamAV API supports Entra ID (Azure AD) authentication at the Container App level. This allows other Azure resources (APIM, Logic Apps, Function Apps, etc.) to authenticate using their managed identities.
+
+### How It Works
+
+1. **Container App** is configured with an **Azure AD App Registration** (via `aadClientId`)
+2. **Calling Resources** (APIM/Logic App) request a token with `resource/scope = aadClientId`
+3. **Container Apps EasyAuth** validates the token's audience matches `aadClientId`
+4. **Authenticated requests** proceed to your API with identity information in headers
+
+### Setup Steps
+
+#### Step 1: Create App Registration (One-Time)
+
+Run the helper script to create the app registration:
+
+```powershell
+# From the scripts directory
+.\create-app-registration.ps1 -EnvironmentName dev
+
+# Or manually:
+az ad app create --display-name "ClamAV API - Dev" --query appId -o tsv
+```
+
+This returns a **Client ID** (e.g., `12345678-1234-1234-1234-123456789abc`).
+
+#### Step 2: Configure in Parameters
+
+```bicep
+param enableAuthentication = true
+param aadClientId = '12345678-1234-1234-1234-123456789abc'  // From Step 1
+```
+
+#### Step 3: Deploy
+
+```bash
+az deployment group create \
+  --resource-group <rg> \
+  --template-file main.bicep \
+  --parameters dev.bicepparam
+```
+
+### How Calling Resources Authenticate
+
+After deployment, other Azure resources authenticate using their managed identities:
+
+#### From Azure API Management (APIM)
+
+```xml
+<inbound>
+  <authentication-managed-identity resource="12345678-1234-1234-1234-123456789abc" />
+</inbound>
+```
+
+#### From Logic Apps
+
+Use the HTTP action with "Managed Identity" authentication:
+- Resource: `12345678-1234-1234-1234-123456789abc` or `api://12345678-1234-1234-1234-123456789abc`
+
+#### From Azure Functions / App Service
+
+```csharp
+var credential = new DefaultAzureCredential();
+var token = await credential.GetTokenAsync(
+    new TokenRequestContext(new[] { "12345678-1234-1234-1234-123456789abc/.default" }));
+
+var client = new HttpClient();
+client.DefaultRequestHeaders.Authorization = 
+    new AuthenticationHeaderValue("Bearer", token.Token);
+```
+
+#### From Azure CLI (for testing)
+
+```bash
+TOKEN=$(az account get-access-token \
+    --resource 12345678-1234-1234-1234-123456789abc \
+    --query accessToken -o tsv)
+
+curl -H "Authorization: Bearer $TOKEN" \
+    https://your-container-app.azurecontainers.io/scan
+```
+
+### Disable Authentication (Development Only)
+
+To make all endpoints public without authentication:
+
+```bicep
+param enableAuthentication = false
+```
+
+**Warning**: Only use this for local development. Production environments should always use Entra ID authentication.
+
 ## Using Existing Container Apps Environment
 
 If you have a shared Container Apps environment, use it instead of creating a new one:
