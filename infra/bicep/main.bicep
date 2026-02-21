@@ -35,10 +35,16 @@ param dockerHubImage string = 'laurentaerenscodit/clamav-api'
 // ========================================
 // Only used if useLocalAcr is true
 
-@description('Name of the Azure Container Registry (leave empty to auto-generate)')
+@description('Existing Azure Container Registry resource ID (leave empty to create new)')
+@metadata({
+  example: '/subscriptions/{subscriptionId}/resourceGroups/{resourceGroup}/providers/Microsoft.ContainerRegistry/registries/{registryName}'
+})
+param existingContainerRegistryId string = ''
+
+@description('Name of the Azure Container Registry (leave empty to auto-generate, used only when creating new)')
 param containerRegistryName string = ''
 
-@description('Container Registry SKU')
+@description('Container Registry SKU (used only when creating new)')
 @allowed([
   'Basic'
   'Standard'
@@ -46,30 +52,46 @@ param containerRegistryName string = ''
 ])
 param containerRegistrySku string = 'Standard'
 
-@description('Enable admin user for Container Registry (useful for initial setup)')
+@description('Enable admin user for Container Registry (useful for initial setup, used only when creating new)')
 param enableAcrAdminUser bool = false
 
 // ========================================
 // Container Apps Environment Parameters
 // ========================================
 
-@description('Use an existing Container Apps managed environment instead of creating a new one')
+@description('Existing Container Apps environment resource ID (leave empty to create new)')
+@metadata({
+  example: '/subscriptions/{subscriptionId}/resourceGroups/{resourceGroup}/providers/Microsoft.App/managedEnvironments/{environmentName}'
+})
+param existingContainerEnvironmentId string = ''
+
+@description('[DEPRECATED - use existingContainerEnvironmentId] Use an existing Container Apps managed environment instead of creating a new one')
 param useExistingManagedEnvironment bool = false
 
-@description('Name of existing Container Apps managed environment (required if useExistingManagedEnvironment is true)')
+@description('[DEPRECATED - use existingContainerEnvironmentId] Name of existing Container Apps managed environment (required if useExistingManagedEnvironment is true)')
 param existingManagedEnvironmentName string = ''
 
-@description('Resource group of existing managed environment (defaults to current resource group)')
+@description('[DEPRECATED - use existingContainerEnvironmentId] Resource group of existing managed environment (defaults to current resource group)')
 param existingManagedEnvironmentResourceGroup string = resourceGroup().name
 
-@description('Enable zone redundancy for Container Apps environment')
+@description('Enable zone redundancy for Container Apps environment (used only when creating new)')
 param enableZoneRedundancy bool = false
 
 // ========================================
 // Storage Parameters
 // ========================================
 
-@description('Name of the storage account for ClamAV database (leave empty to auto-generate)')
+@description('Existing storage account resource ID (leave empty to create new)')
+@metadata({
+  example: '/subscriptions/{subscriptionId}/resourceGroups/{resourceGroup}/providers/Microsoft.Storage/storageAccounts/{accountName}'
+})
+param existingStorageAccountId string = ''
+
+@description('Existing storage account key (required only if using existing storage account in different subscription)')
+@secure()
+param existingStorageAccountKey string = ''
+
+@description('Name of the storage account for ClamAV database (leave empty to auto-generate, used only when creating new)')
 param storageAccountName string = ''
 
 @description('Name of the file share for ClamAV database persistence')
@@ -148,7 +170,13 @@ param aadAudience string = ''
 // Log Analytics Parameters
 // ========================================
 
-@description('Log retention in days')
+@description('Existing Log Analytics workspace resource ID (leave empty to create new)')
+@metadata({
+  example: '/subscriptions/{subscriptionId}/resourceGroups/{resourceGroup}/providers/Microsoft.OperationalInsights/workspaces/{workspaceName}'
+})
+param existingLogAnalyticsWorkspaceId string = ''
+
+@description('Log retention in days (used only when creating new)')
 @minValue(30)
 @maxValue(730)
 param logRetentionDays int = 30
@@ -157,22 +185,28 @@ param logRetentionDays int = 30
 // Application Insights Parameters
 // ========================================
 
-@description('Enable Application Insights for telemetry and monitoring')
+@description('Existing Application Insights resource ID (leave empty to create new)')
+@metadata({
+  example: '/subscriptions/{subscriptionId}/resourceGroups/{resourceGroup}/providers/Microsoft.Insights/components/{appInsightsName}'
+})
+param existingApplicationInsightsId string = ''
+
+@description('Enable Application Insights for telemetry and monitoring (disable = no telemetry)')
 param enableApplicationInsights bool = true
 
-@description('Name of the Application Insights resource (leave empty to auto-generate)')
+@description('Name of the Application Insights resource (leave empty to auto-generate, used only when creating new)')
 param applicationInsightsName string = ''
 
-@description('Application Insights data retention in days')
+@description('Application Insights data retention in days (used only when creating new)')
 @minValue(30)
 @maxValue(730)
 param appInsightsRetentionDays int = 90
 
-@description('Application Insights daily data cap in GB (0 = no cap)')
+@description('Application Insights daily data cap in GB (0 = no cap, used only when creating new)')
 @minValue(0)
 param appInsightsDailyCapGB int = 0
 
-@description('Disable IP masking in Application Insights for detailed telemetry')
+@description('Disable IP masking in Application Insights for detailed telemetry (used only when creating new)')
 param appInsightsDisableIpMasking bool = false
 
 // ========================================
@@ -182,11 +216,14 @@ param appInsightsDisableIpMasking bool = false
 @description('Enable alerts when malware is detected')
 param enableMalwareAlerts bool = true
 
-@description('Resource ID of the Action Group to notify on malware detection')
+@description('Resource ID of existing Action Group to notify on malware detection (leave empty to create from email)')
 @metadata({
   example: '/subscriptions/{subscriptionId}/resourceGroups/{resourceGroup}/providers/Microsoft.Insights/actionGroups/{actionGroupName}'
 })
 param malwareAlertActionGroupId string = ''
+
+@description('Email address for malware alerts (creates new Action Group if malwareAlertActionGroupId is empty)')
+param malwareAlertEmail string = ''
 
 @description('Alert threshold: number of malware detections to trigger alert')
 @minValue(1)
@@ -218,15 +255,36 @@ var storageAcctName = !empty(storageAccountName) ? storageAccountName : 'st${app
 var logAnalyticsName = 'log-${applicationName}-${environmentName}-${resourceSuffix}'
 var appInsightsName = !empty(applicationInsightsName) ? applicationInsightsName : 'appi-${applicationName}-${environmentName}'
 var containerEnvironmentName = 'cae-${applicationName}-${environmentName}'
+var actionGroupName = 'ag-${applicationName}-${environmentName}-malware'
+var actionGroupShortName = 'MalwareAlert'
+
+// Determine if using existing resources
+var useExistingContainerEnv = !empty(existingContainerEnvironmentId) || useExistingManagedEnvironment
+
+// Determine final action group ID (existing > create from email > none)
+var shouldCreateActionGroup = enableMalwareAlerts && empty(malwareAlertActionGroupId) && !empty(malwareAlertEmail)
 
 // ========================================
 // Module Deployments
 // ========================================
 
-// Deploy Log Analytics Workspace (skip if using existing environment)
-module logAnalytics './modules/log-analytics.bicep' = if (!useExistingManagedEnvironment) {
+// Deploy Action Group for malware alerts (create from email if needed)
+module actionGroup './modules/action-group.bicep' = if (shouldCreateActionGroup) {
+  name: 'deploy-action-group'
+  params: {
+    actionGroupName: actionGroupName
+    shortName: actionGroupShortName
+    emailAddress: malwareAlertEmail
+    emailReceiverName: 'Security Team'
+    tags: tags
+  }
+}
+
+// Deploy Log Analytics Workspace
+module logAnalytics './modules/log-analytics.bicep' = if (!useExistingContainerEnv || enableApplicationInsights) {
   name: 'deploy-log-analytics'
   params: {
+    existingWorkspaceId: existingLogAnalyticsWorkspaceId
     workspaceName: logAnalyticsName
     location: location
     retentionInDays: logRetentionDays
@@ -238,9 +296,10 @@ module logAnalytics './modules/log-analytics.bicep' = if (!useExistingManagedEnv
 module applicationInsights './modules/app-insights.bicep' = if (enableApplicationInsights) {
   name: 'deploy-app-insights'
   params: {
+    existingApplicationInsightsId: existingApplicationInsightsId
     applicationInsightsName: appInsightsName
     location: location
-    logAnalyticsWorkspaceId: !useExistingManagedEnvironment ? logAnalytics.outputs.workspaceId : ''
+    logAnalyticsWorkspaceId: enableApplicationInsights ? logAnalytics.outputs.workspaceId : ''
     applicationType: 'web'
     retentionInDays: appInsightsRetentionDays
     dailyDataCapInGB: appInsightsDailyCapGB
@@ -254,6 +313,7 @@ module applicationInsights './modules/app-insights.bicep' = if (enableApplicatio
 module containerRegistry './modules/acr.bicep' = if (useLocalAcr) {
   name: 'deploy-acr'
   params: {
+    existingRegistryId: existingContainerRegistryId
     registryName: acrName
     location: location
     sku: containerRegistrySku
@@ -266,6 +326,7 @@ module containerRegistry './modules/acr.bicep' = if (useLocalAcr) {
 module storage './modules/storage.bicep' = {
   name: 'deploy-storage'
   params: {
+    existingStorageAccountId: existingStorageAccountId
     storageAccountName: storageAcctName
     location: location
     fileShareName: clamavFileShareName
@@ -275,12 +336,12 @@ module storage './modules/storage.bicep' = {
 }
 
 // Deploy Container Apps Managed Environment (skip if using existing)
-module containerEnvironment './modules/container-environment.bicep' = if (!useExistingManagedEnvironment) {
+module containerEnvironment './modules/container-environment.bicep' = if (!useExistingContainerEnv) {
   name: 'deploy-container-environment'
   params: {
     environmentName: containerEnvironmentName
     location: location
-    logAnalyticsWorkspaceId: !useExistingManagedEnvironment ? logAnalytics.outputs.workspaceId : ''
+    logAnalyticsWorkspaceId: logAnalytics.outputs.workspaceId
     storageAccountName: storage.outputs.storageAccountName
     fileShareName: storage.outputs.fileShareName
     storageMountName: 'clamav-db-storage'
@@ -290,17 +351,15 @@ module containerEnvironment './modules/container-environment.bicep' = if (!useEx
 }
 
 // Reference existing Container Apps Managed Environment if specified
-resource existingEnvironment 'Microsoft.App/managedEnvironments@2024-03-01' existing = if (useExistingManagedEnvironment) {
-  name: existingManagedEnvironmentName
-  scope: resourceGroup(existingManagedEnvironmentResourceGroup)
+resource existingEnvironment 'Microsoft.App/managedEnvironments@2024-03-01' existing = if (useExistingContainerEnv) {
+  name: !empty(existingContainerEnvironmentId) ? last(split(existingContainerEnvironmentId, '/')) : existingManagedEnvironmentName
 }
 
 // Add storage mount to existing environment using module
-module existingEnvironmentStorageMount './modules/existing-env-storage-mount.bicep' = if (useExistingManagedEnvironment) {
+module existingEnvironmentStorageMount './modules/existing-env-storage-mount.bicep' = if (useExistingContainerEnv) {
   name: 'add-storage-mount-existing-env'
-  scope: resourceGroup(existingManagedEnvironmentResourceGroup)
   params: {
-    existingEnvironmentName: existingManagedEnvironmentName
+    existingEnvironmentName: !empty(existingContainerEnvironmentId) ? last(split(existingContainerEnvironmentId, '/')) : existingManagedEnvironmentName
     storageAccountName: storage.outputs.storageAccountName
     fileShareName: storage.outputs.fileShareName
     storageMountName: 'clamav-db-storage'
@@ -313,7 +372,7 @@ module containerApp './modules/container-app.bicep' = {
   params: {
     containerAppName: containerAppName
     location: location
-    environmentId: useExistingManagedEnvironment ? existingEnvironment.id : (!useExistingManagedEnvironment ? containerEnvironment.outputs.environmentId : '')
+    environmentId: useExistingContainerEnv ? existingEnvironment.id : containerEnvironment.outputs.environmentId
     storageMountName: 'clamav-db-storage'
     containerImage: useLocalAcr ? '${containerRegistry.outputs.loginServer}/${applicationName}:${containerImageTag}' : (contains(dockerHubImage, ':') ? dockerHubImage : '${dockerHubImage}:${containerImageTag}')
     containerRegistryServer: useLocalAcr ? containerRegistry.outputs.loginServer : ''
@@ -348,39 +407,42 @@ resource acrPullRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-
   }
 }
 
-// Create metric alert for malware detections (optional)
-resource malwareDetectionAlert 'Microsoft.Insights/metricAlerts@2018-03-01' = if (enableMalwareAlerts && enableApplicationInsights && !empty(malwareAlertActionGroupId)) {
+// Create log-based alert for malware detections (optional)
+// Uses scheduled query rules to query Application Insights for MalwareDetected events
+resource malwareDetectionAlert 'Microsoft.Insights/scheduledQueryRules@2021-08-01' = if (enableMalwareAlerts && enableApplicationInsights && (!empty(malwareAlertActionGroupId) || shouldCreateActionGroup)) {
   name: '${applicationName}-malware-detection-alert'
-  location: 'global'
+  location: location
   tags: tags
   properties: {
+    displayName: 'Malware Detection Alert - ${applicationName}'
     description: 'Alert triggered when malware is detected by the ClamAV scanning API'
-    severity: 2 // Critical (0=Critical, 1=Error, 2=Warning, 3=Informational, 4=Verbose)
+    severity: 2 // Warning (0=Critical, 1=Error, 2=Warning, 3=Informational, 4=Verbose)
     enabled: true
     scopes: [
-      enableApplicationInsights ? applicationInsights.outputs.applicationInsightsId : ''
+      applicationInsights.outputs.applicationInsightsId
     ]
-    evaluationFrequency: 'PT1M' // Evaluate every minute
-    windowSize: 'PT${malwareAlertEvaluationMinutes}M' // Time window (e.g., PT5M for 5 minutes)
+    evaluationFrequency: 'PT${malwareAlertEvaluationMinutes}M'
+    windowSize: 'PT${malwareAlertEvaluationMinutes}M'
     criteria: {
-      'odata.type': 'Microsoft.Azure.Monitor.MultipleResourceMultipleMetricCriteria'
       allOf: [
         {
-          name: 'MalwareDetections'
-          metricName: 'MalwareDetections'
+          query: 'customEvents | where name == "MalwareDetected" | summarize count()'
+          timeAggregation: 'Count'
           operator: 'GreaterThanOrEqual'
           threshold: malwareAlertThreshold
-          timeAggregation: 'Total'
-          dimensions: []
-          criterionType: 'StaticThresholdCriterion'
+          failingPeriods: {
+            numberOfEvaluationPeriods: 1
+            minFailingPeriodsToAlert: 1
+          }
         }
       ]
     }
-    actions: [
-      {
-        actionGroupId: malwareAlertActionGroupId
-      }
-    ]
+    actions: {
+      actionGroups: [
+        !empty(malwareAlertActionGroupId) ? malwareAlertActionGroupId : actionGroup.outputs.actionGroupId
+      ]
+    }
+    autoMitigate: true
   }
 }
 
@@ -407,13 +469,13 @@ output storageAccountName string = storage.outputs.storageAccountName
 output fileShareName string = storage.outputs.fileShareName
 
 @description('Container Apps environment name')
-output containerEnvironmentName string = useExistingManagedEnvironment ? existingManagedEnvironmentName : 'cae-${applicationName}-${environmentName}'
+output containerEnvironmentName string = useExistingContainerEnv ? (!empty(existingContainerEnvironmentId) ? last(split(existingContainerEnvironmentId, '/')) : existingManagedEnvironmentName) : containerEnvironmentName
 
 @description('Container App name')
 output containerAppName string = containerApp.outputs.containerAppName
 
-@description('Log Analytics workspace name (if created)')
-output logAnalyticsWorkspaceName string = useExistingManagedEnvironment ? 'N/A - using existing environment' : logAnalyticsName
+@description('Log Analytics workspace name')
+output logAnalyticsWorkspaceName string = !empty(existingLogAnalyticsWorkspaceId) ? 'Using existing workspace' : (useExistingContainerEnv ? 'Using existing environment workspace' : logAnalyticsName)
 
 @description('Container App system-assigned managed identity principal ID')
 output containerAppPrincipalId string = containerApp.outputs.principalId
@@ -430,8 +492,11 @@ output applicationInsightsName string = enableApplicationInsights ? applicationI
 @description('Application Insights App ID (if enabled)')
 output applicationInsightsAppId string = enableApplicationInsights ? applicationInsights.outputs.appId : 'Not enabled'
 
+@description('Action Group ID for malware alerts (if configured)')
+output actionGroupId string = !empty(malwareAlertActionGroupId) ? malwareAlertActionGroupId : (shouldCreateActionGroup ? actionGroup.outputs.actionGroupId : 'Not configured')
+
 @description('Malware detection alert name (if enabled)')
-output malwareAlertName string = (enableMalwareAlerts && enableApplicationInsights && !empty(malwareAlertActionGroupId)) ? malwareDetectionAlert.name : 'Not enabled'
+output malwareAlertName string = (enableMalwareAlerts && enableApplicationInsights && (!empty(malwareAlertActionGroupId) || shouldCreateActionGroup)) ? malwareDetectionAlert.name : 'Not enabled'
 
 @description('Malware detection alert ID (if enabled)')
-output malwareAlertId string = (enableMalwareAlerts && enableApplicationInsights && !empty(malwareAlertActionGroupId)) ? malwareDetectionAlert.id : 'Not enabled'
+output malwareAlertId string = (enableMalwareAlerts && enableApplicationInsights && (!empty(malwareAlertActionGroupId) || shouldCreateActionGroup)) ? malwareDetectionAlert.id : 'Not enabled'

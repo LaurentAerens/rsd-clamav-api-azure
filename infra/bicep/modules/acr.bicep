@@ -1,13 +1,17 @@
 // Azure Container Registry Module
 // Based on Azure Verified Modules pattern
+// Supports using existing registry or creating new
 
-@description('Name of the Azure Container Registry')
-param registryName string
+@description('Existing Container Registry resource ID (leave empty to create new)')
+param existingRegistryId string = ''
 
-@description('Location for the Container Registry')
-param location string
+@description('Name of the Azure Container Registry (used only when creating new)')
+param registryName string = ''
 
-@description('SKU for the Container Registry')
+@description('Location for the Container Registry (used only when creating new)')
+param location string = resourceGroup().location
+
+@description('SKU for the Container Registry (used only when creating new)')
 @allowed([
   'Basic'
   'Standard'
@@ -15,14 +19,22 @@ param location string
 ])
 param sku string = 'Standard'
 
-@description('Enable admin user')
+@description('Enable admin user (used only when creating new)')
 param adminUserEnabled bool = false
 
-@description('Tags to apply to the registry')
+@description('Tags to apply to the registry (used only when creating new)')
 param tags object = {}
 
-// Deploy Azure Container Registry using AVM module
-module containerRegistry 'br/public:avm/res/container-registry/registry:0.7.0' = {
+// Determine whether to use existing or create new
+var useExisting = !empty(existingRegistryId)
+
+// Reference existing Container Registry
+resource existingRegistry 'Microsoft.ContainerRegistry/registries@2023-07-01' existing = if (useExisting) {
+  name: last(split(existingRegistryId, '/'))
+}
+
+// Deploy Azure Container Registry using AVM module (only if not using existing)
+module containerRegistry 'br/public:avm/res/container-registry/registry:0.7.0' = if (!useExisting) {
   name: 'acr-deployment'
   params: {
     name: registryName
@@ -36,10 +48,10 @@ module containerRegistry 'br/public:avm/res/container-registry/registry:0.7.0' =
 }
 
 @description('Resource ID of the Container Registry')
-output registryId string = containerRegistry.outputs.resourceId
+output registryId string = useExisting ? existingRegistry.id : containerRegistry.outputs.resourceId
 
 @description('Login server for the Container Registry')
-output loginServer string = containerRegistry.outputs.loginServer
+output loginServer string = useExisting ? existingRegistry.properties.loginServer : containerRegistry.outputs.loginServer
 
 @description('Name of the Container Registry')
-output registryName string = containerRegistry.outputs.name
+output registryName string = useExisting ? existingRegistry.name : containerRegistry.outputs.name

@@ -4,17 +4,26 @@ This directory contains Bicep parameter files for deploying the ClamAV API to di
 
 ## Quick Start
 
-1. **Copy the example parameter file:**
+1. **Choose an example parameter file based on your scenario:**
+   - `example-full-deploy.bicepparam` - Create all new resources (recommended for dev/test)
+   - `example-byo.bicepparam` - Use existing resources (recommended for production)
+   - `example.bicepparam` - Comprehensive documentation of all parameters
+
+2. **Copy the appropriate example:**
    ```bash
-   cp example.bicepparam dev.bicepparam
+   # For new deployment
+   cp example-full-deploy.bicepparam dev.bicepparam
+   
+   # For production with existing resources
+   cp example-byo.bicepparam prod.bicepparam
    ```
 
-2. **Edit your parameter file** and configure at minimum:
+3. **Edit your parameter file** and configure at minimum:
    - `environmentName` - Your environment name (e.g., 'dev', 'staging', 'prod')
    - `location` - Azure region (e.g., 'eastus', 'westeurope')
    - `aadClientId` - Azure AD application client ID (if using authentication)
 
-3. **Deploy using the parameter file:**
+4. **Deploy using the parameter file:**
    ```bash
    az deployment group create \
      --resource-group <your-resource-group> \
@@ -24,8 +33,49 @@ This directory contains Bicep parameter files for deploying the ClamAV API to di
 
 ## Parameter Files
 
-- **example.bicepparam** - Fully documented example with all available parameters
+- **example.bicepparam** - Comprehensive reference with all available parameters and documentation
+- **example-full-deploy.bicepparam** - Simplified example for creating all new resources
+- **example-byo.bicepparam** - Example for using existing resources (Bring Your Own)
 - Create your own: `<environment>.bicepparam` (e.g., `dev.bicepparam`, `prod.bicepparam`)
+
+## Deployment Scenarios
+
+### Scenario 1: Full Deployment (Create Everything New)
+
+Best for: Development, testing, isolated environments
+
+Use `example-full-deploy.bicepparam` as a starting point. All infrastructure (Log Analytics, Application Insights, Storage, Container Environment) will be created fresh.
+
+**Pros:**
+- Simple setup - no existing infrastructure needed
+- Complete isolation from other resources
+- Easy to tear down and recreate
+
+**Cons:**
+- Higher cost (separate monitoring/storage per environment)
+- No centralized logging/monitoring across environments
+
+### Scenario 2: Bring Your Own Resources (BYO)
+
+Best for: Production, cost optimization, organizational compliance
+
+Use `example-byo.bicepparam` as a starting point. Reuse existing infrastructure like:
+- Log Analytics workspace (centralized logging)
+- Application Insights (unified monitoring)
+- Storage accounts (shared infrastructure)
+- Container Apps environment (multiple apps in same environment)
+- Action Groups (existing alert channels)
+
+**Pros:**
+- Cost optimization (shared monitoring/storage)
+- Centralized logging and compliance
+- Consistent with organizational policies
+- Cross-subscription support
+
+**Cons:**
+- Requires existing infrastructure setup
+- Need proper RBAC permissions on existing resources
+- Slightly more complex configuration
 
 ## Essential Parameters
 
