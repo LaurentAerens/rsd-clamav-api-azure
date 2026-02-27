@@ -55,12 +55,13 @@ jobs:
     - name: Run Tests
       if: ${{ inputs.run_tests }}
       run: |
-        dotnet test src/Arcus.ClamAV.Tests/bin/Release/net10.0/Arcus.ClamAV.Tests.dll \
+        dotnet test src/Arcus.ClamAV.Tests/Arcus.ClamAV.Tests.csproj \
+          --configuration Release \
+          --no-build \
           --verbosity normal \
           --logger "trx;LogFileName=test-results.trx" \
-          --collect:"XPlat Code Coverage" \
-          --results-directory=./coverage \
-          -- DataCollectionRunSettings.DataCollectors.DataCollector.Configuration.Format=cobertura
+          --collect:"XPlat Code Coverage;Format=cobertura" \
+          --results-directory=./coverage
 
     - name: Generate Coverage Report
       if: ${{ inputs.run_tests }}
