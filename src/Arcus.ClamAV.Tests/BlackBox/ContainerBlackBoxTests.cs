@@ -107,6 +107,58 @@ public class ContainerBlackBoxTests
     }
 
     /// <summary>
+    /// Verify file scan endpoint detects EICAR test file and returns 406 (Not Acceptable).
+    /// </summary>
+    [Fact(DisplayName = "File scan should detect EICAR test file and return 406")]
+    public async Task FileScan_ShouldDetectEicarTestFileAndReturn406()
+    {
+        // Arrange
+        using var content = new MultipartFormDataContent();
+
+        // The actual EICAR test string that triggers antivirus detection
+        var eicarBytes = System.Text.Encoding.ASCII.GetBytes("X5O!P%@AP[4\\PZX54(P^)7CC)7}$EICAR-STANDARD-ANTIVIRUS-TEST-FILE!$H+H*");
+        using var fileContent = new ByteArrayContent(eicarBytes);
+        fileContent.Headers.ContentType = System.Net.Http.Headers.MediaTypeHeaderValue.Parse("application/octet-stream");
+        content.Add(fileContent, "file", "eicar.com");
+
+        // Act
+        var response = await _httpClient.PostAsync($"{_baseUrl}/scan", content);
+
+        // Assert - Should return 406 (Not Acceptable) for infected file
+        response.StatusCode.ShouldBe(HttpStatusCode.NotAcceptable);
+        var result = await response.Content.ReadFromJsonAsync<ScanResponse>();
+        result.ShouldNotBeNull();
+        result!.Status.ShouldBe("infected");
+        result.Malware.ShouldContain("EICAR");
+    }
+
+    /// <summary>
+    /// Verify file scan endpoint accepts clean files and returns 200.
+    /// </summary>
+    [Fact(DisplayName = "File scan should accept clean file and return 200")]
+    public async Task FileScan_ShouldAcceptCleanFileAndReturn200()
+    {
+        // Arrange
+        using var content = new MultipartFormDataContent();
+
+        // Create a clean test file with some arbitrary data
+        var cleanFileBytes = System.Text.Encoding.UTF8.GetBytes("This is a clean file with no malicious content whatsoever.");
+        using var fileContent = new ByteArrayContent(cleanFileBytes);
+        fileContent.Headers.ContentType = System.Net.Http.Headers.MediaTypeHeaderValue.Parse("text/plain");
+        content.Add(fileContent, "file", "clean.txt");
+
+        // Act
+        var response = await _httpClient.PostAsync($"{_baseUrl}/scan", content);
+
+        // Assert - Should return 200 (OK) for clean file
+        response.StatusCode.ShouldBe(HttpStatusCode.OK);
+        var result = await response.Content.ReadFromJsonAsync<ScanResponse>();
+        result.ShouldNotBeNull();
+        result!.Status.ShouldBe("clean");
+        result.Malware.ShouldBeNullOrEmpty();
+    }
+
+    /// <summary>
     /// Verify JSON scan endpoint accepts POST requests with JSON payload.
     /// </summary>
     [Fact(DisplayName = "JSON scan endpoint should accept JSON payload")]
@@ -153,34 +205,109 @@ public class ContainerBlackBoxTests
     }
 
     /// <summary>
-    /// Verify async scan endpoint returns job information.
+    /// Verify async scan endpoint returns job information for clean files.
     /// </summary>
-    [Fact(DisplayName = "Async scan endpoint should accept multipart file and return job ID")]
-    public async Task AsyncScanEndpoint_ShouldReturnJobId()
+    [Fact(DisplayName = "Async scan endpoint should accept clean file and return job ID")]
+    public async Task AsyncScanEndpoint_WithCleanFile_ShouldReturnJobId()
     {
         // Arrange
         using var content = new MultipartFormDataContent();
-        var testFileBytes = new byte[] { 0x00, 0x01, 0x02, 0x03 };
-        using var fileContent = new ByteArrayContent(testFileBytes);
-        fileContent.Headers.ContentType = System.Net.Http.Headers.MediaTypeHeaderValue.Parse("application/octet-stream");
-        content.Add(fileContent, "file", "test.bin");
+        var cleanFileBytes = System.Text.Encoding.UTF8.GetBytes("This is a clean test file for async scanning.");
+        using var fileContent = new ByteArrayContent(cleanFileBytes);
+        fileContent.Headers.ContentType = System.Net.Http.Headers.MediaTypeHeaderValue.Parse("text/plain");
+        content.Add(fileContent, "file", "clean-async.txt");
 
         // Act
         var response = await _httpClient.PostAsync($"{_baseUrl}/scan/async", content);
 
         // Assert
-        response.StatusCode.ShouldBeOneOf(
-            HttpStatusCode.Accepted, // Async operations return 202
-            HttpStatusCode.BadRequest,
-            HttpStatusCode.InternalServerError
-        );
+        response.StatusCode.ShouldBe(HttpStatusCode.Accepted); // Async operations return 202
+        var result = await response.Content.ReadFromJsonAsync<AsyncScanResponse>();
+        result.ShouldNotBeNull();
+        result!.JobId.ShouldNotBeNullOrEmpty();
+    }
 
-        if (response.StatusCode == HttpStatusCode.Accepted)
-        {
-            var result = await response.Content.ReadFromJsonAsync<AsyncScanResponse>();
-            result.ShouldNotBeNull();
-            result!.JobId.ShouldNotBeNullOrEmpty();
-        }
+    /// <summary>
+    /// Verify async scan endpoint returns job information for infected files.
+    /// </summary>
+    [Fact(DisplayName = "Async scan endpoint should accept EICAR file and return job ID")]
+    public async Task AsyncScanEndpoint_WithEicarFile_ShouldReturnJobId()
+    {
+        // Arrange
+        using var content = new MultipartFormDataContent();
+        var eicarBytes = System.Text.Encoding.ASCII.GetBytes("X5O!P%@AP[4\\PZX54(P^)7CC)7}$EICAR-STANDARD-ANTIVIRUS-TEST-FILE!$H+H*");
+        using var fileContent = new ByteArrayContent(eicarBytes);
+        fileContent.Headers.ContentType = System.Net.Http.Headers.MediaTypeHeaderValue.Parse("application/octet-stream");
+        content.Add(fileContent, "file", "eicar-async.com");
+
+        // Act
+        var response = await _httpClient.PostAsync($"{_baseUrl}/scan/async", content);
+
+        // Assert - Should still return Accepted (202) for async processing
+        response.StatusCode.ShouldBe(HttpStatusCode.Accepted); // Async operations return 202
+        var result = await response.Content.ReadFromJsonAsync<AsyncScanResponse>();
+        result.ShouldNotBeNull();
+        result!.JobId.ShouldNotBeNullOrEmpty();
+    }
+
+    /// <summary>
+    /// Verify async scan job status endpoint returns correct status for completed scan.
+    /// </summary>
+    [Fact(DisplayName = "Async scan status endpoint should return completed job status")]
+    public async Task AsyncScanStatus_ShouldReturnCompletedJobStatus()
+    {
+        // Arrange - First submit an async scan
+        using var uploadContent = new MultipartFormDataContent();
+        var cleanFileBytes = System.Text.Encoding.UTF8.GetBytes("Clean file for status check.");
+        using var fileContent = new ByteArrayContent(cleanFileBytes);
+        fileContent.Headers.ContentType = System.Net.Http.Headers.MediaTypeHeaderValue.Parse("text/plain");
+        uploadContent.Add(fileContent, "file", "status-check.txt");
+
+        var uploadResponse = await _httpClient.PostAsync($"{_baseUrl}/scan/async", uploadContent);
+        uploadResponse.StatusCode.ShouldBe(HttpStatusCode.Accepted);
+        
+        var asyncResult = await uploadResponse.Content.ReadFromJsonAsync<AsyncScanResponse>();
+        asyncResult.ShouldNotBeNull();
+        var jobId = asyncResult!.JobId;
+
+        // Wait a bit for the scan to complete
+        await Task.Delay(TimeSpan.FromSeconds(2));
+
+        // Act - Check job status using correct endpoint: /scan/async/{jobId}
+        var statusResponse = await _httpClient.GetAsync($"{_baseUrl}/scan/async/{jobId}");
+
+        // Assert
+        statusResponse.StatusCode.ShouldBeOneOf(HttpStatusCode.OK, HttpStatusCode.Accepted);
+        var statusResult = await statusResponse.Content.ReadFromJsonAsync<ScanStatusResponse>();
+        statusResult.ShouldNotBeNull();
+        statusResult!.JobId.ShouldBe(jobId);
+    }
+
+    /// <summary>
+    /// Verify list jobs endpoint returns job information.
+    /// </summary>
+    [Fact(DisplayName = "List jobs endpoint should return available jobs")]
+    public async Task ListJobs_ShouldReturnJobsList()
+    {
+        // Arrange - First submit an async scan
+        using var uploadContent = new MultipartFormDataContent();
+        var testFileBytes = System.Text.Encoding.UTF8.GetBytes("File for listing.");
+        using var fileContent = new ByteArrayContent(testFileBytes);
+        fileContent.Headers.ContentType = System.Net.Http.Headers.MediaTypeHeaderValue.Parse("text/plain");
+        uploadContent.Add(fileContent, "file", "list-test.txt");
+
+        var uploadResponse = await _httpClient.PostAsync($"{_baseUrl}/scan/async", uploadContent);
+        uploadResponse.StatusCode.ShouldBe(HttpStatusCode.Accepted);
+
+        // Act - Get list of jobs
+        var response = await _httpClient.GetAsync($"{_baseUrl}/scan/jobs");
+
+        // Assert
+        response.StatusCode.ShouldBe(HttpStatusCode.OK);
+        var result = await response.Content.ReadFromJsonAsync<JobsListResponse>();
+        result.ShouldNotBeNull();
+        result!.Jobs.ShouldNotBeNull();
+        result.Jobs.Count().ShouldBeGreaterThanOrEqualTo(0);
     }
 
     /// <summary>

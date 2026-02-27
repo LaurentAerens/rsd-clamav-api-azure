@@ -97,6 +97,7 @@ stages:
                     
                     # Application
                     applicationName: $(applicationName)
+                    aspNetCoreEnvironment: 'Development'
                     
                     # Authentication (use variable from variable group)
                     enableAuthentication: true
@@ -114,6 +115,10 @@ stages:
                     # Application settings
                     maxFileSizeMB: 200
                     maxConcurrentWorkers: 2
+                    
+                    # Monitoring
+                    enableMalwareAlerts: false  # Disable alerts in dev
+                    malwareAlertEmail: ''
 
   # ========================================
   # Stage: Deploy to Production
@@ -130,8 +135,10 @@ stages:
       
       # Example: Use existing shared Container Apps environment
       useSharedEnvironment: false  # Set to true if using shared environment
-      sharedEnvironmentName: 'cae-shared-prod'
-      sharedEnvironmentRG: 'rg-shared-infrastructure'
+      sharedEnvironmentId: ''  # Full resource ID: /subscriptions/{sub}/resourceGroups/{rg}/providers/Microsoft.App/managedEnvironments/{name}
+      
+      # Example malware alert email
+      malwareAlertEmail: ''  # TODO: Set email for malware alerts
     jobs:
       - deployment: DeployProdEnvironment
         displayName: 'Deploy to Production'
@@ -156,11 +163,11 @@ stages:
                     
                     # Application
                     applicationName: $(applicationName)
+                    aspNetCoreEnvironment: 'Production'
                     
                     # Use existing Container Apps environment (optional)
-                    useExistingManagedEnvironment: $(useSharedEnvironment)
-                    existingManagedEnvironmentName: $(sharedEnvironmentName)
-                    existingManagedEnvironmentResourceGroup: $(sharedEnvironmentRG)
+                    existingContainerEnvironmentId: $(sharedEnvironmentId)
+                    enableZoneRedundancy: false  # Set to true for production HA
                     
                     # Authentication (use variable from variable group)
                     enableAuthentication: true
@@ -178,6 +185,10 @@ stages:
                     # Application settings
                     maxFileSizeMB: 200
                     maxConcurrentWorkers: 4
+                    
+                    # Monitoring
+                    enableMalwareAlerts: true
+                    malwareAlertEmail: $(malwareAlertEmail)  # Set in variable group
 
 # ========================================
 # Additional Stages (Optional)

@@ -11,14 +11,14 @@
 		<PackageReference Include="Microsoft.ApplicationInsights.AspNetCore" Version="3.0.0" />
 		<PackageReference Include="NClam" Version="7.0.0" />
 		<PackageReference Include="NSwag.AspNetCore" Version="14.6.3" />
-		<PackageReference Include="NSwag.MSBuild" Version="14.3.0">
+		<PackageReference Include="NSwag.MSBuild" Version="14.6.3">
 		  <PrivateAssets>all</PrivateAssets>
 		  <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
 		</PackageReference>
 		<PackageReference Include="Swashbuckle.AspNetCore" Version="7.2.0" />
 	</ItemGroup>
 	<Target Name="NSwag" BeforeTargets="AfterBuild" Condition="'$(CI)'!='true'">
-		<Exec ConsoleToMSBuild="true" ContinueOnError="true" Command="$(NSwagExe_Net80) run ../Arcus.ClamAV.Api.Client/nswag.json">
+		<Exec ConsoleToMSBuild="true" ContinueOnError="true" Command="$(NSwagExe_Net100) run ../Arcus.ClamAV.Api.Client/nswag.json">
 			<Output TaskParameter="ExitCode" PropertyName="NSwagExitCode" />
 			<Output TaskParameter="ConsoleOutput" PropertyName="NSwagOutput" />
 		</Exec>
