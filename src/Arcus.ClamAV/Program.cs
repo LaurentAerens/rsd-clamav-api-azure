@@ -2,7 +2,7 @@ using Arcus.ClamAV.Endpoints;
 using Arcus.ClamAV.Handlers;
 using Arcus.ClamAV.Services;
 using Microsoft.AspNetCore.Http.Features;
-using Microsoft.OpenApi.Models;
+using Microsoft.OpenApi;
 
 var builder = WebApplication.CreateBuilder(args);
 
