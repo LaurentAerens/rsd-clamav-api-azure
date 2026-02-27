@@ -1,29 +1,25 @@
-using System.Net.Sockets;
 using System.Text;
 
 namespace Arcus.ClamAV.Services;
-
-public interface IClamAvInfoService
-{
-    Task<string> GetVersionAsync();
-}
 
 public class ClamAvInfoService : IClamAvInfoService
 {
     private readonly string _host;
     private readonly int _port;
+    private readonly ITcpConnectionFactory _connectionFactory;
 
-    public ClamAvInfoService(IConfiguration config)
+    public ClamAvInfoService(IConfiguration config, ITcpConnectionFactory? connectionFactory = null)
     {
         _host = config["CLAMD_HOST"] ?? "127.0.0.1";
         _port = int.TryParse(config["CLAMD_PORT"], out var p) ? p : 3310;
+        _connectionFactory = connectionFactory ?? new TcpConnectionFactory();
     }
 
     public async Task<string> GetVersionAsync()
     {
-        using var client = new TcpClient();
-        await client.ConnectAsync(_host, _port);
-        using var stream = client.GetStream();
+        using var connection = _connectionFactory.CreateConnection();
+        await connection.ConnectAsync(_host, _port);
+        using var stream = connection.GetStream();
 
         // Send "VERSION\n" command
         var buffer = Encoding.ASCII.GetBytes("VERSION\n");
@@ -37,3 +33,4 @@ public class ClamAvInfoService : IClamAvInfoService
         return version;
     }
 }
+
