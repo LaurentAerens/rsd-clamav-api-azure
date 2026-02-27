@@ -119,10 +119,75 @@ jobs:
           echo "StyleCop violations detected. Review build output above."
           exit 1
 
+  unit-tests:
+    name: Unit Tests & Code Coverage
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      checks: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Restore dependencies
+        run: dotnet restore src/Arcus.ClamAV.sln
+
+      - name: Build
+        run: dotnet build --no-restore src/Arcus.ClamAV.sln -c Release
+
+      - name: Run Unit Tests with Coverage
+        run: |
+          dotnet test src/Arcus.ClamAV.Tests/Arcus.ClamAV.Tests.csproj \
+            --no-build \
+            --configuration Release \
+            --logger "trx;LogFileName=test-results.trx" \
+            --filter "FullyQualifiedName!~Arcus.ClamAV.Tests.BlackBox&FullyQualifiedName!~Arcus.ClamAV.Tests.Integration" \
+            --collect:"XPlat Code Coverage"
+
+      - name: Generate Coverage Report
+        if: always()
+        run: |
+          dotnet tool install --global dotnet-reportgenerator-globaltool
+          reportgenerator \
+            -reports:"src/Arcus.ClamAV.Tests/TestResults/*/coverage.cobertura.xml" \
+            -targetdir:"./coverage-report" \
+            -reporttypes:"Html;MarkdownSummary"
+
+      - name: Upload Coverage Report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: code-coverage-report
+          path: coverage-report
+          retention-days: 30
+
+      - name: Publish Test Results
+        if: always()
+        uses: EnricoMi/publish-unit-test-result-action@v2
+        with:
+          files: '**/*.trx'
+          check_name: Unit Test Results
+
+      - name: Upload Coverage to Codecov
+        if: always()
+        uses: codecov/codecov-action@v4
+        with:
+          files: 'src/Arcus.ClamAV.Tests/TestResults/*/coverage.cobertura.xml'
+          flags: unittests
+          name: codecov-umbrella
+          token: ${{ secrets.CODECOV_TOKEN }}
+          fail_ci_if_error: false
+
   code-quality-summary:
     name: Code Quality Summary
     runs-on: ubuntu-latest
-    needs: [codeql, semgrep, stylecopanalyzer]
+    needs: [codeql, semgrep, stylecopanalyzer, unit-tests]
     if: always()
 
     steps:
@@ -132,3 +197,4 @@ jobs:
           echo "✓ CodeQL: SAST vulnerability detection"
           echo "✓ Semgrep: Pattern-based code scanning"
           echo "✓ StyleCop: Code style enforcement"
+          echo "✓ Unit Tests: Test execution with code coverage"

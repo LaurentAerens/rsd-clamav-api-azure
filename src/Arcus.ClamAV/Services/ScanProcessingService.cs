@@ -6,7 +6,8 @@ namespace Arcus.ClamAV.Services;
 public class ScanProcessingService(
     IScanJobService jobService,
     ITelemetryService telemetryService,
-    IConfiguration configuration,
+    IClamAvScanService clamAvScanService,
+    IHttpClientWrapperFactory httpClientFactory,
     ILogger<ScanProcessingService> logger)
     : IScanProcessingService
 {
@@ -108,7 +109,7 @@ public class ScanProcessingService(
 
     private async Task<bool> DownloadFileAsync(string jobId, string url, string tempFilePath, long maxFileSize, CancellationToken cancellationToken)
     {
-        var httpClient = new HttpClient();
+        var httpClient = httpClientFactory.CreateClient();
         httpClient.Timeout = TimeSpan.FromMinutes(10);
 
         try
@@ -220,15 +221,8 @@ public class ScanProcessingService(
     {
         try
         {
-            var host = configuration["CLAMD_HOST"] ?? Environment.GetEnvironmentVariable("CLAMD_HOST") ?? "127.0.0.1";
-            var port = int.TryParse(configuration["CLAMD_PORT"] ?? Environment.GetEnvironmentVariable("CLAMD_PORT"), out var p) ? p : 3310;
-
-            var clam = new ClamClient(host, port);
-
             await using var fileStream = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.Read);
-            clam.MaxStreamSize = fileStream.Length;
-
-            var result = await clam.SendAndScanFileAsync(fileStream, cancellationToken);
+            var result = await clamAvScanService.ScanFileAsync(fileStream, fileStream.Length);
 
             return result.Result switch
             {

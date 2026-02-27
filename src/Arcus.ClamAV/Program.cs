@@ -47,8 +47,9 @@ builder.Services.Configure<FormOptions>(o =>
 });
 
 var swaggerEnabled = builder.Configuration.GetValue<bool>("Swagger:Enabled", false);
+var isCodeGeneration = builder.Environment.EnvironmentName == "CodeGeneration";
 
-if (swaggerEnabled)
+if (swaggerEnabled || isCodeGeneration)
 {
     builder.Services.AddEndpointsApiExplorer();
     builder.Services.AddSwaggerGen(c =>
@@ -65,9 +66,13 @@ if (swaggerEnabled)
 }
 
 // Register services
+builder.Services.AddSingleton<ITcpConnectionFactory, TcpConnectionFactory>();
 builder.Services.AddSingleton<IClamAvInfoService, ClamAvInfoService>();
 builder.Services.AddSingleton<IScanJobService, ScanJobService>();
 builder.Services.AddSingleton<IJsonBase64ExtractorService, JsonBase64ExtractorService>();
+builder.Services.AddSingleton<IClamClientFactory, ClamClientFactory>();
+builder.Services.AddScoped<IClamAvScanService, ClamAvScanService>();
+builder.Services.AddScoped<IHttpClientWrapperFactory, HttpClientWrapperFactory>();
 
 // Register telemetry service (safe to use even if Application Insights is not configured)
 builder.Services.AddSingleton<ITelemetryService, TelemetryService>();
