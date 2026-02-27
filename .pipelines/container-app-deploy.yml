@@ -67,23 +67,18 @@ parameters:
   # ========================================
   # Existing Environment (Optional)
   # ========================================
-  - name: useExistingManagedEnvironment
+  - name: existingContainerEnvironmentId
+    type: string
+    displayName: 'Existing Container Apps Environment Resource ID'
+    default: ''
+    # Full resource ID of existing environment (leave empty to create new)
+    # Example: /subscriptions/{sub}/resourceGroups/{rg}/providers/Microsoft.App/managedEnvironments/{name}
+
+  - name: enableZoneRedundancy
     type: boolean
-    displayName: 'Use Existing Container Apps Environment'
+    displayName: 'Enable Zone Redundancy'
     default: false
-    # Set to true to deploy to existing environment
-
-  - name: existingManagedEnvironmentName
-    type: string
-    displayName: 'Existing Environment Name'
-    default: ''
-    # Required if useExistingManagedEnvironment is true
-
-  - name: existingManagedEnvironmentResourceGroup
-    type: string
-    displayName: 'Existing Environment Resource Group'
-    default: ''
-    # Defaults to deployment resource group if empty
+    # Only used when creating new environment
 
   # ========================================
   # Authentication Parameters
@@ -128,6 +123,15 @@ parameters:
   # ========================================
   # Application Configuration
   # ========================================
+  - name: aspNetCoreEnvironment
+    type: string
+    displayName: 'ASP.NET Core Environment'
+    default: 'Production'
+    values:
+      - Development
+      - Staging
+      - Production
+
   - name: maxFileSizeMB
     type: number
     displayName: 'Max File Size (MB)'
@@ -157,6 +161,20 @@ parameters:
     type: string
     displayName: 'Memory Size'
     default: '2.0Gi'
+
+  # ========================================
+  # Malware Alert Parameters
+  # ========================================
+  - name: enableMalwareAlerts
+    type: boolean
+    displayName: 'Enable Malware Detection Alerts'
+    default: true
+
+  - name: malwareAlertEmail
+    type: string
+    displayName: 'Malware Alert Email'
+    default: ''
+    # Email to receive malware detection alerts (creates Action Group)
 
   # ========================================
   # Deployment Options
@@ -267,21 +285,24 @@ stages:
                   --parameters environmentName='${{ parameters.environmentName }}' \
                   --parameters location='${{ parameters.location }}' \
                   --parameters applicationName='${{ parameters.applicationName }}' \
+                  --parameters useLocalAcr=true \
                   --parameters containerRegistryName='$(acrName)' \
                   --parameters containerAppName='${{ parameters.containerAppName }}' \
-                  --parameters useExistingManagedEnvironment=${{ parameters.useExistingManagedEnvironment }} \
-                  --parameters existingManagedEnvironmentName='${{ parameters.existingManagedEnvironmentName }}' \
-                  --parameters existingManagedEnvironmentResourceGroup='${{ parameters.existingManagedEnvironmentResourceGroup }}' \
+                  --parameters existingContainerEnvironmentId='${{ parameters.existingContainerEnvironmentId }}' \
+                  --parameters enableZoneRedundancy=${{ parameters.enableZoneRedundancy }} \
                   --parameters enableAuthentication=${{ parameters.enableAuthentication }} \
                   --parameters aadClientId='${{ parameters.aadClientId }}' \
                   --parameters aadTenantId='${{ parameters.aadTenantId }}' \
+                  --parameters aspNetCoreEnvironment='${{ parameters.aspNetCoreEnvironment }}' \
                   --parameters containerImageTag='${{ parameters.imageTag }}' \
                   --parameters minReplicas=${{ parameters.minReplicas }} \
                   --parameters maxReplicas=${{ parameters.maxReplicas }} \
                   --parameters containerCpuCores='${{ parameters.cpuCores }}' \
                   --parameters containerMemory='${{ parameters.memorySize }}' \
                   --parameters maxFileSizeMB=${{ parameters.maxFileSizeMB }} \
-                  --parameters maxConcurrentWorkers=${{ parameters.maxConcurrentWorkers }}
+                  --parameters maxConcurrentWorkers=${{ parameters.maxConcurrentWorkers }} \
+                  --parameters enableMalwareAlerts=${{ parameters.enableMalwareAlerts }} \
+                  --parameters malwareAlertEmail='${{ parameters.malwareAlertEmail }}'
 
           # Deploy Infrastructure
           - task: AzureCLI@2
@@ -300,14 +321,15 @@ stages:
                   --parameters environmentName='${{ parameters.environmentName }}' \
                   --parameters location='${{ parameters.location }}' \
                   --parameters applicationName='${{ parameters.applicationName }}' \
+                  --parameters useLocalAcr=true \
                   --parameters containerRegistryName='$(acrName)' \
                   --parameters containerAppName='${{ parameters.containerAppName }}' \
-                  --parameters useExistingManagedEnvironment=${{ parameters.useExistingManagedEnvironment }} \
-                  --parameters existingManagedEnvironmentName='${{ parameters.existingManagedEnvironmentName }}' \
-                  --parameters existingManagedEnvironmentResourceGroup='${{ parameters.existingManagedEnvironmentResourceGroup }}' \
+                  --parameters existingContainerEnvironmentId='${{ parameters.existingContainerEnvironmentId }}' \
+                  --parameters enableZoneRedundancy=${{ parameters.enableZoneRedundancy }} \
                   --parameters enableAuthentication=${{ parameters.enableAuthentication }} \
                   --parameters aadClientId='${{ parameters.aadClientId }}' \
                   --parameters aadTenantId='${{ parameters.aadTenantId }}' \
+                  --parameters aspNetCoreEnvironment='${{ parameters.aspNetCoreEnvironment }}' \
                   --parameters containerImageTag='${{ parameters.imageTag }}' \
                   --parameters minReplicas=${{ parameters.minReplicas }} \
                   --parameters maxReplicas=${{ parameters.maxReplicas }} \
@@ -315,6 +337,8 @@ stages:
                   --parameters containerMemory='${{ parameters.memorySize }}' \
                   --parameters maxFileSizeMB=${{ parameters.maxFileSizeMB }} \
                   --parameters maxConcurrentWorkers=${{ parameters.maxConcurrentWorkers }} \
+                  --parameters enableMalwareAlerts=${{ parameters.enableMalwareAlerts }} \
+                  --parameters malwareAlertEmail='${{ parameters.malwareAlertEmail }}' \
                   --output json > deployment-output.json
                 
                 # Extract and display outputs

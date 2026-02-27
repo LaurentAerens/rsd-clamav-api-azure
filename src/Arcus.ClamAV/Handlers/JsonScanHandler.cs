@@ -8,16 +8,12 @@ namespace Arcus.ClamAV.Handlers;
 
 public class JsonScanHandler(
     IJsonBase64ExtractorService extractorService,
-    IConfiguration configuration,
+    IClamAvScanService clamAvScanService,
     ILogger<JsonScanHandler> logger)
 {
     public async Task<IResult> HandleAsync(JsonScanRequest request)
     {
         var startTime = DateTime.UtcNow;
-        var host = configuration["CLAMD_HOST"] ?? Environment.GetEnvironmentVariable("CLAMD_HOST") ?? "127.0.0.1";
-        var port = int.TryParse(configuration["CLAMD_PORT"] ?? Environment.GetEnvironmentVariable("CLAMD_PORT"), out var p) ? p : 3310;
-
-        var clam = new ClamClient(host, port);
         var result = new JsonScanResult
         {
             Status = "clean",
@@ -40,9 +36,7 @@ public class JsonScanHandler(
             foreach (var item in base64Items)
             {
                 using var memoryStream = new MemoryStream(item.DecodedContent);
-                clam.MaxStreamSize = item.DecodedContent.Length;
-
-                var scanResult = await clam.SendAndScanFileAsync(memoryStream);
+                var scanResult = await clamAvScanService.ScanFileAsync(memoryStream, item.DecodedContent.Length);
                 result.ItemsScanned++;
 
                 var detail = new ScannedItemDetail
@@ -77,9 +71,7 @@ public class JsonScanHandler(
 
                 var stringBytes = Encoding.UTF8.GetBytes(stringValue.Content);
                 using var stringStream = new MemoryStream(stringBytes);
-                clam.MaxStreamSize = stringBytes.Length;
-
-                var scanResult = await clam.SendAndScanFileAsync(stringStream);
+                var scanResult = await clamAvScanService.ScanFileAsync(stringStream, stringBytes.Length);
                 result.ItemsScanned++;
 
                 var detail = new ScannedItemDetail

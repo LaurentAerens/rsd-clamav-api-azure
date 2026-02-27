@@ -9,7 +9,7 @@ public class FileScanHandler(
     IScanJobService jobService,
     IScanProcessingService scanProcessing,
     IBackgroundTaskQueue backgroundService,
-    IConfiguration configuration)
+    IClamAvScanService clamAvScanService)
 {
     public async Task<IResult> HandleSyncAsync(IFormFile file)
     {
@@ -18,14 +18,9 @@ public class FileScanHandler(
             return Results.BadRequest(new ErrorResponse { Error = "Missing or empty file" });
         }
 
-        var host = configuration["CLAMD_HOST"] ?? Environment.GetEnvironmentVariable("CLAMD_HOST") ?? "127.0.0.1";
-        var port = int.TryParse(configuration["CLAMD_PORT"] ?? Environment.GetEnvironmentVariable("CLAMD_PORT"), out var p) ? p : 3310;
-
-        var clam = new ClamClient(host, port) { MaxStreamSize = file.Length };
-
         await using var stream = file.OpenReadStream();
         var startTime = DateTime.UtcNow;
-        var result = await clam.SendAndScanFileAsync(stream);
+        var result = await clamAvScanService.ScanFileAsync(stream, file.Length);
         var scanDuration = DateTime.UtcNow - startTime;
 
         return result.Result switch
