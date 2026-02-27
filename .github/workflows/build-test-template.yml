@@ -59,7 +59,8 @@ jobs:
           --verbosity normal \
           --logger "trx;LogFileName=test-results.trx" \
           --collect:"XPlat Code Coverage" \
-          --results-directory=./coverage
+          --results-directory=./coverage \
+          -- DataCollectionRunSettings.DataCollectors.DataCollector.Configuration.Format=cobertura
 
     - name: Generate Coverage Report
       if: ${{ inputs.run_tests }}
@@ -70,7 +71,7 @@ jobs:
         reportgenerator \
           -reports:"./coverage/**/coverage.cobertura.xml" \
           -targetdir:"./coverage/report" \
-          -reporttypes:"MarkdownGithub;Html" \
+          -reporttypes:"MarkdownSummaryGithub;Html" \
           -classfilters:"+Arcus.ClamAV*"
 
     - name: Extract Coverage Metrics
