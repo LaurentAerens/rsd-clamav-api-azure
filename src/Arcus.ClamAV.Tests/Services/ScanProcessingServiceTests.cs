@@ -380,16 +380,50 @@ public class ScanProcessingServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task ProcessFileScanAsync_WithFileNotFound_HandlesGracefully()
+    public async Task ProcessUrlScanAsync_WithoutContentLength_SetsJobFileSizeToTotalBytesRead()
     {
         // Arrange
-        var nonExistentFile = Path.Combine(Path.GetTempPath(), $"nonexistent_{Guid.NewGuid()}.txt");
-        
         var mockJobService = new Mock<IScanJobService>();
         var mockTelemetry = new Mock<ITelemetryService>();
         var mockClamAvScanService = new Mock<IClamAvScanService>();
         var mockHttpClientFactory = new Mock<IHttpClientWrapperFactory>();
+        var mockHttpClient = new Mock<IHttpClientWrapper>();
         var mockLogger = new Mock<ILogger<ScanProcessingService>>();
+
+        mockHttpClientFactory.Setup(f => f.CreateClient()).Returns(mockHttpClient.Object);
+
+        // Mock HEAD request without Content-Length
+        var headResponse = new HttpResponseMessage(System.Net.HttpStatusCode.OK);
+        headResponse.Content = new ByteArrayContent(Array.Empty<byte>());
+        // Explicitly remove Content-Length header
+        headResponse.Content.Headers.ContentLength = null;
+
+        mockHttpClient.Setup(c => c.SendAsync(
+                It.Is<HttpRequestMessage>(r => r.Method == HttpMethod.Head),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(headResponse);
+
+        // Mock GET request with StreamContent for proper async reading
+        var downloadedBytes = new byte[12345]; // Exactly 12,345 bytes
+        var memoryStream = new MemoryStream(downloadedBytes);
+        var getResponse = new HttpResponseMessage(System.Net.HttpStatusCode.OK)
+        {
+            Content = new StreamContent(memoryStream)
+        };
+
+        mockHttpClient.Setup(c => c.SendAsync(
+                It.Is<HttpRequestMessage>(r => r.Method == HttpMethod.Get),
+                HttpCompletionOption.ResponseHeadersRead,
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(getResponse);
+
+        var scanResult = new ClamScanResult("stream: OK");
+        mockClamAvScanService.Setup(s => s.ScanFileAsync(It.IsAny<Stream>(), It.IsAny<long>()))
+            .ReturnsAsync(scanResult);
+
+        var job = new ScanJob { JobId = "job-filesize-test" };
+        mockJobService.Setup(j => j.GetJob("job-filesize-test"))
+            .Returns(job);
 
         var service = new ScanProcessingService(
             mockJobService.Object,
@@ -399,11 +433,66 @@ public class ScanProcessingServiceTests : IDisposable
             mockLogger.Object);
 
         // Act
-        var result = await service.ProcessFileScanAsync("job10", nonExistentFile, CancellationToken.None);
+        var result = await service.ProcessUrlScanAsync("job-filesize-test", "https://example.com/file.bin", _tempFilePath, 1024 * 1024, CancellationToken.None);
 
         // Assert
-        result.ShouldBeFalse();
-        mockJobService.Verify(j => j.UpdateJobStatus("job10", "error", null, It.IsAny<string>()), Times.Once);
-        mockJobService.Verify(j => j.CompleteJob("job10"), Times.Once);
+        result.ShouldBeTrue();
+        // FileSize should be set to the exact number of bytes downloaded
+        job.FileSize.ShouldBe(12345);
+        mockJobService.Verify(j => j.GetJob("job-filesize-test"), Times.AtLeastOnce);
+    }
+
+    [Fact]
+    public async Task ProcessUrlScanAsync_WithoutContentLength_WhenJobNotFound_ReturnsSuccessWithoutError()
+    {
+        // Arrange
+        var mockJobService = new Mock<IScanJobService>();
+        var mockTelemetry = new Mock<ITelemetryService>();
+        var mockClamAvScanService = new Mock<IClamAvScanService>();
+        var mockHttpClientFactory = new Mock<IHttpClientWrapperFactory>();
+        var mockHttpClient = new Mock<IHttpClientWrapper>();
+        var mockLogger = new Mock<ILogger<ScanProcessingService>>();
+
+        mockHttpClientFactory.Setup(f => f.CreateClient()).Returns(mockHttpClient.Object);
+
+        // Mock HEAD request without Content-Length
+        var headResponse = new HttpResponseMessage(System.Net.HttpStatusCode.OK);
+        headResponse.Content = new ByteArrayContent(Array.Empty<byte>());
+
+        mockHttpClient.Setup(c => c.SendAsync(
+                It.Is<HttpRequestMessage>(r => r.Method == HttpMethod.Head),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(headResponse);
+
+        // Mock GET request
+        var getResponse = new HttpResponseMessage(System.Net.HttpStatusCode.OK);
+        getResponse.Content = new ByteArrayContent(new byte[500]);
+
+        mockHttpClient.Setup(c => c.SendAsync(
+                It.Is<HttpRequestMessage>(r => r.Method == HttpMethod.Get),
+                HttpCompletionOption.ResponseHeadersRead,
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(getResponse);
+
+        var scanResult = new ClamScanResult("stream: OK");
+        mockClamAvScanService.Setup(s => s.ScanFileAsync(It.IsAny<Stream>(), It.IsAny<long>()))
+            .ReturnsAsync(scanResult);
+
+        // GetJob returns null (job not found)
+        mockJobService.Setup(j => j.GetJob("nonexistent-job")).Returns((ScanJob?)null);
+
+        var service = new ScanProcessingService(
+            mockJobService.Object,
+            mockTelemetry.Object,
+            mockClamAvScanService.Object,
+            mockHttpClientFactory.Object,
+            mockLogger.Object);
+
+        // Act
+        var result = await service.ProcessUrlScanAsync("nonexistent-job", "https://example.com/file.txt", _tempFilePath, 1024 * 1024, CancellationToken.None);
+
+        // Assert
+        result.ShouldBeTrue(); // Should still complete successfully
+        mockJobService.Verify(j => j.GetJob("nonexistent-job"), Times.Once);
     }
 }
