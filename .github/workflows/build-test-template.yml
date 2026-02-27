@@ -65,19 +65,22 @@ jobs:
       if: ${{ inputs.run_tests }}
       run: |
         dotnet tool install -g dotnet-reportgenerator-globaltool --version 5.2.0
+        # Find and list coverage files
+        find ./coverage -name "coverage.cobertura.xml" -type f || true
         reportgenerator \
           -reports:"./coverage/**/coverage.cobertura.xml" \
           -targetdir:"./coverage/report" \
-          -reporttypes:"Badges;SummaryGithub" \
+          -reporttypes:"MarkdownGithub;Html" \
           -classfilters:"+Arcus.ClamAV*"
 
     - name: Extract Coverage Metrics
       if: ${{ inputs.run_tests }}
       id: coverage
       run: |
-        # Extract line coverage percentage from the Cobertura report
+        # Extract line coverage percentage from the Markdown report
         if [ -f "./coverage/report/SummaryGithub.md" ]; then
-          COVERAGE=$(grep -oP '(?<=alt=")[^"]*line coverage[^"]*' "./coverage/report/SummaryGithub.md" | grep -oP '\d+' | head -1)
+          # Parse the table to get line coverage value
+          COVERAGE=$(grep -A5 "Line coverage" "./coverage/report/SummaryGithub.md" | grep -oP '\d+(?=[^0-9]|$)' | head -1)
           if [ -z "$COVERAGE" ]; then
             COVERAGE="0"
           fi
