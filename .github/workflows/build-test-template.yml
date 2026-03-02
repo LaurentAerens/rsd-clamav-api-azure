@@ -49,10 +49,11 @@ jobs:
         PROJECT_PATH: ${{ inputs.project_path }}
       run: dotnet build --no-restore --configuration Release -p:CI="$CI" "$PROJECT_PATH"
 
-    - name: Build Docker Image
-      run: docker compose build
+    - name: Verify Docker availability
+      if: ${{ inputs.run_tests }}
+      run: docker --version
 
-    - name: Run Tests
+    - name: Run Tests (Unit + BlackBox)
       if: ${{ inputs.run_tests }}
       run: |
         dotnet test src/Arcus.ClamAV.Tests/Arcus.ClamAV.Tests.csproj \
@@ -62,6 +63,17 @@ jobs:
           --logger "trx;LogFileName=test-results.trx" \
           --collect:"XPlat Code Coverage;Format=cobertura" \
           --results-directory=./coverage
+
+    - name: Generate Test Summary
+      if: ${{ inputs.run_tests }}
+      run: |
+        echo "## 🧪 Test Execution Summary" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "| Test Suite | Status |" >> $GITHUB_STEP_SUMMARY
+        echo "|------------|--------|" >> $GITHUB_STEP_SUMMARY
+        echo "| Unit + BlackBox Tests | ✅ Completed |" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "📊 See detailed results in the **Test Results** check below" >> $GITHUB_STEP_SUMMARY
 
     - name: Generate Coverage Report
       if: ${{ inputs.run_tests }}
@@ -105,8 +117,9 @@ jobs:
       if: always()
       uses: EnricoMi/publish-unit-test-result-action@v2
       with:
-        files: '**/test-results.trx'
-        check_name: Unit Test Results
+        files: |
+          **/test-results.trx
+        check_name: Test Results (Unit + BlackBox)
         comment_mode: always
 
     - name: Add Coverage Comment

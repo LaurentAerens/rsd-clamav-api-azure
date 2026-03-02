@@ -8,10 +8,14 @@ namespace Arcus.ClamAV.Tests.BlackBox;
 /// </summary>
 public class DockerComposeFixture : IDisposable
 {
+    private static readonly object _lifecycleLock = new();
+    private static int _fixtureRefCount;
+    private static bool _dockerLifecycleInitialized;
+    private static bool _dockerStartedByFixture;
+
     private readonly string _workspaceRoot;
     private readonly string _baseUrl;
     private readonly HttpClient _httpClient;
-    private readonly bool _containersStarted;
 
     public string BaseUrl => _baseUrl;
 
@@ -22,20 +26,31 @@ public class DockerComposeFixture : IDisposable
         _baseUrl = Environment.GetEnvironmentVariable("CONTAINER_BASE_URL") ?? "http://localhost:8080";
         _httpClient = new HttpClient { Timeout = TimeSpan.FromSeconds(5) };
 
-        Console.WriteLine("🐳 Starting Docker Compose for BlackBox tests...");
-        bool started = false;
-        try
+        lock (_lifecycleLock)
         {
-            StartDockerCompose();
-            started = true;
-        }
-        finally
-        {
-            _containersStarted = started;
+            _fixtureRefCount++;
+
+            if (_dockerLifecycleInitialized)
+            {
+                Console.WriteLine("♻️ Reusing existing Docker lifecycle for BlackBox tests");
+                return;
+            }
+
+            Console.WriteLine("🐳 Starting Docker Compose for BlackBox tests...");
+            try
+            {
+                _dockerStartedByFixture = StartDockerCompose();
+                _dockerLifecycleInitialized = true;
+            }
+            catch
+            {
+                _fixtureRefCount--;
+                throw;
+            }
         }
     }
 
-    private void StartDockerCompose()
+    private bool StartDockerCompose()
     {
         try
         {
@@ -46,8 +61,15 @@ public class DockerComposeFixture : IDisposable
                     "Docker is not available. Please ensure Docker Desktop is installed and running.");
             }
 
+            // If an instance is already healthy, reuse it instead of recreating resources.
+            if (IsApiHealthy())
+            {
+                Console.WriteLine("♻️ Reusing already running healthy Docker container");
+                return false;
+            }
+
             // Stop any existing containers first
-            RunDockerComposeCommand("down", captureOutput: true);
+            CleanupExistingContainers();
 
             // Start containers in detached mode
             Console.WriteLine($"📦 Running docker-compose up from: {_workspaceRoot}");
@@ -58,9 +80,19 @@ public class DockerComposeFixture : IDisposable
             Console.WriteLine("⏳ Waiting for API to be healthy...");
             WaitForHealthEndpoint();
             Console.WriteLine("✅ Docker Compose services are ready!");
+            return true;
         }
         catch (Exception ex)
         {
+            // Another test run may be creating the same resources concurrently.
+            // In that case, wait for the existing container to become healthy and reuse it.
+            if (IsDockerResourceConflict(ex.Message))
+            {
+                Console.WriteLine("⚠️ Docker resources already in use by another run; waiting for healthy API and reusing it");
+                WaitForHealthEndpoint();
+                return false;
+            }
+
             Console.WriteLine($"❌ Failed to start Docker Compose: {ex.Message}");
             // Try to show container logs for debugging
             try
@@ -76,6 +108,52 @@ public class DockerComposeFixture : IDisposable
 
             throw new InvalidOperationException(
                 "Failed to start Docker Compose. Ensure docker-compose.yml exists and Docker is running.", ex);
+        }
+    }
+
+    private bool IsApiHealthy()
+    {
+        try
+        {
+            var response = _httpClient.GetAsync($"{_baseUrl}/healthz").GetAwaiter().GetResult();
+            return response.IsSuccessStatusCode;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    private static bool IsDockerResourceConflict(string message)
+    {
+        return message.Contains("already exists", StringComparison.OrdinalIgnoreCase)
+               || message.Contains("already in use", StringComparison.OrdinalIgnoreCase)
+               || message.Contains("Conflict.", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private void CleanupExistingContainers()
+    {
+        RunDockerComposeCommand("down --remove-orphans --volumes", captureOutput: true);
+        Thread.Sleep(1000);
+
+        var containerCheck = RunCommand(
+            "docker",
+            "ps -a --filter name=clamav-api --format \"{{.Names}}\"",
+            captureOutput: true);
+        if (containerCheck.Contains("clamav-api", StringComparison.OrdinalIgnoreCase))
+        {
+            RunCommand("docker", "rm -f clamav-api", captureOutput: true);
+            Thread.Sleep(500);
+        }
+
+        var networkCheck = RunCommand(
+            "docker",
+            "network ls --filter name=rsd-clamav-api-azure_default --format \"{{.Name}}\"",
+            captureOutput: true);
+        if (networkCheck.Contains("rsd-clamav-api-azure_default", StringComparison.OrdinalIgnoreCase))
+        {
+            RunCommand("docker", "network rm rsd-clamav-api-azure_default", captureOutput: true);
+            Thread.Sleep(500);
         }
     }
 
@@ -149,12 +227,17 @@ public class DockerComposeFixture : IDisposable
 
     private string RunDockerComposeCommand(string arguments, bool captureOutput = false)
     {
+        return RunCommand("docker", $"compose {arguments}", captureOutput);
+    }
+
+    private string RunCommand(string fileName, string arguments, bool captureOutput = false)
+    {
         using var process = new Process
         {
             StartInfo = new ProcessStartInfo
             {
-                FileName = "docker",
-                Arguments = $"compose {arguments}",
+                FileName = fileName,
+                Arguments = arguments,
                 WorkingDirectory = _workspaceRoot,
                 RedirectStandardOutput = captureOutput,
                 RedirectStandardError = captureOutput,
@@ -178,10 +261,10 @@ public class DockerComposeFixture : IDisposable
 
         process.WaitForExit();
 
-        if (process.ExitCode != 0 && arguments.Contains("up"))
+        if (process.ExitCode != 0 && arguments.Contains("up", StringComparison.OrdinalIgnoreCase))
         {
             throw new InvalidOperationException(
-                $"docker-compose {arguments} failed with exit code {process.ExitCode}. Output: {output}");
+            $"docker-compose {arguments} failed with exit code {process.ExitCode}. Output: {output}");
         }
 
         return output;
@@ -207,12 +290,30 @@ public class DockerComposeFixture : IDisposable
 
     public void Dispose()
     {
-        if (_containersStarted)
+        _httpClient?.Dispose();
+
+        bool shouldCleanupContainers = false;
+        lock (_lifecycleLock)
+        {
+            if (_fixtureRefCount > 0)
+            {
+                _fixtureRefCount--;
+            }
+
+            if (_fixtureRefCount == 0)
+            {
+                shouldCleanupContainers = _dockerLifecycleInitialized && _dockerStartedByFixture;
+                _dockerLifecycleInitialized = false;
+                _dockerStartedByFixture = false;
+            }
+        }
+
+        if (shouldCleanupContainers)
         {
             try
             {
                 Console.WriteLine("🧹 Cleaning up Docker Compose containers...");
-                RunDockerComposeCommand("down", captureOutput: true);
+                CleanupExistingContainers();
                 Console.WriteLine("✅ Containers stopped successfully");
             }
             catch (Exception ex)
@@ -220,7 +321,5 @@ public class DockerComposeFixture : IDisposable
                 Console.WriteLine($"⚠️  Warning: Failed to stop containers: {ex.Message}");
             }
         }
-
-        _httpClient?.Dispose();
     }
 }

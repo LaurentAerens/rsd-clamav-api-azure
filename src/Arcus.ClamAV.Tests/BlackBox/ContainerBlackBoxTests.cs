@@ -168,13 +168,14 @@ public class ContainerBlackBoxTests
     public async Task JsonScanEndpoint_ShouldAcceptJsonPayload()
     {
         // Arrange
-        var scanRequest = new JsonScanRequest
-        {
-            Payload = JsonDocument.Parse("{\"data\": \"VGhpcyBpcyBhIHRlc3Q=\"}").RootElement
-        };
+        var jsonPayload = new StringContent(
+            @"{""data"": ""VGhpcyBpcyBhIHRlc3Q=""}",
+            Encoding.UTF8,
+            new System.Net.Http.Headers.MediaTypeHeaderValue("application/json")
+        );
 
         // Act
-        var response = await _httpClient.PostAsJsonAsync($"{_baseUrl}/scan/json", scanRequest);
+        var response = await _httpClient.PostAsync($"{_baseUrl}/scan/json", jsonPayload);
 
         // Assert
         response.StatusCode.ShouldBeOneOf(
@@ -362,15 +363,17 @@ public class ContainerBlackBoxTests
     public async Task JsonScan_ShouldDetectPlaintextEicar()
     {
         // Arrange
-        var payload = JsonDocument.Parse(@"{
+        var jsonPayload = new StringContent(
+            @"{
             ""file"": ""X5O!P%@AP[4\\PZX54(P^)7CC)7}$EICAR-STANDARD-ANTIVIRUS-TEST-FILE!$H+H*"",
             ""filename"": ""test.exe""
-        }").RootElement;
-
-        var scanRequest = new JsonScanRequest { Payload = payload };
+        }",
+            Encoding.UTF8,
+            new System.Net.Http.Headers.MediaTypeHeaderValue("application/json")
+        );
 
         // Act
-        var response = await _httpClient.PostAsJsonAsync($"{_baseUrl}/scan/json", scanRequest);
+        var response = await _httpClient.PostAsync($"{_baseUrl}/scan/json", jsonPayload);
 
         // Assert
         response.StatusCode.ShouldBe(HttpStatusCode.NotAcceptable); // 406 for infected
@@ -389,15 +392,17 @@ public class ContainerBlackBoxTests
     public async Task JsonScan_ShouldDetectBase64Eicar()
     {
         // Arrange
-        var payload = JsonDocument.Parse(@"{
+        var jsonPayload = new StringContent(
+            @"{
             ""file"": ""WDVPIVAlQEFQWzRcUFpYNTQoUF4pN0NDKTd9JEVJQ0FSLVNUQU5EQVJELUFOVElWSVJVUy1URVNULUZJTEUhJEgrSCo="",
             ""filename"": ""test.exe""
-        }").RootElement;
-
-        var scanRequest = new JsonScanRequest { Payload = payload };
+        }",
+            Encoding.UTF8,
+            new System.Net.Http.Headers.MediaTypeHeaderValue("application/json")
+        );
 
         // Act
-        var response = await _httpClient.PostAsJsonAsync($"{_baseUrl}/scan/json", scanRequest);
+        var response = await _httpClient.PostAsync($"{_baseUrl}/scan/json", jsonPayload);
 
         // Assert
         response.StatusCode.ShouldBe(HttpStatusCode.NotAcceptable); // 406 for infected
@@ -415,17 +420,19 @@ public class ContainerBlackBoxTests
     public async Task JsonScan_ShouldDetectEicarInNestedObjects()
     {
         // Arrange
-        var payload = JsonDocument.Parse(@"{
+        var jsonPayload = new StringContent(
+            @"{
             ""user"": {
                 ""name"": ""test"",
                 ""attachment"": ""X5O!P%@AP[4\\PZX54(P^)7CC)7}$EICAR-STANDARD-ANTIVIRUS-TEST-FILE!$H+H*""
             }
-        }").RootElement;
-
-        var scanRequest = new JsonScanRequest { Payload = payload };
+        }",
+            Encoding.UTF8,
+            new System.Net.Http.Headers.MediaTypeHeaderValue("application/json")
+        );
 
         // Act
-        var response = await _httpClient.PostAsJsonAsync($"{_baseUrl}/scan/json", scanRequest);
+        var response = await _httpClient.PostAsync($"{_baseUrl}/scan/json", jsonPayload);
 
         // Assert
         response.StatusCode.ShouldBe(HttpStatusCode.NotAcceptable); // 406 for infected
@@ -441,7 +448,8 @@ public class ContainerBlackBoxTests
     public async Task JsonScan_ShouldDetectEicarInArrays()
     {
         // Arrange
-        var payload = JsonDocument.Parse(@"{
+        var jsonPayload = new StringContent(
+            @"{
             ""documents"": [
                 {
                     ""type"": ""pdf"",
@@ -452,12 +460,13 @@ public class ContainerBlackBoxTests
                     ""content"": ""clean content""
                 }
             ]
-        }").RootElement;
-
-        var scanRequest = new JsonScanRequest { Payload = payload };
+        }",
+            Encoding.UTF8,
+            new System.Net.Http.Headers.MediaTypeHeaderValue("application/json")
+        );
 
         // Act
-        var response = await _httpClient.PostAsJsonAsync($"{_baseUrl}/scan/json", scanRequest);
+        var response = await _httpClient.PostAsync($"{_baseUrl}/scan/json", jsonPayload);
 
         // Assert
         response.StatusCode.ShouldBe(HttpStatusCode.NotAcceptable); // 406 for infected
@@ -473,7 +482,8 @@ public class ContainerBlackBoxTests
     public async Task JsonScan_ShouldAcceptCleanBase64()
     {
         // Arrange
-        var payload = JsonDocument.Parse(@"{
+        var jsonPayload = new StringContent(
+            @"{
             ""documents"": [
                 {
                     ""type"": ""pdf"",
@@ -481,12 +491,13 @@ public class ContainerBlackBoxTests
                 }
             ],
             ""filename"": ""test.pdf""
-        }").RootElement;
-
-        var scanRequest = new JsonScanRequest { Payload = payload };
+        }",
+            Encoding.UTF8,
+            new System.Net.Http.Headers.MediaTypeHeaderValue("application/json")
+        );
 
         // Act
-        var response = await _httpClient.PostAsJsonAsync($"{_baseUrl}/scan/json", scanRequest);
+        var response = await _httpClient.PostAsync($"{_baseUrl}/scan/json", jsonPayload);
 
         // Assert
         response.StatusCode.ShouldBe(HttpStatusCode.OK);
@@ -503,7 +514,8 @@ public class ContainerBlackBoxTests
     public async Task JsonScan_ShouldHandleDeeplyNestedStructures()
     {
         // Arrange
-        var payload = JsonDocument.Parse(@"{
+        var jsonPayload = new StringContent(
+            @"{
             ""level1"": {
                 ""level2"": {
                     ""level3"": {
@@ -515,12 +527,13 @@ public class ContainerBlackBoxTests
                     }
                 }
             }
-        }").RootElement;
-
-        var scanRequest = new JsonScanRequest { Payload = payload };
+        }",
+            Encoding.UTF8,
+            new System.Net.Http.Headers.MediaTypeHeaderValue("application/json")
+        );
 
         // Act
-        var response = await _httpClient.PostAsJsonAsync($"{_baseUrl}/scan/json", scanRequest);
+        var response = await _httpClient.PostAsync($"{_baseUrl}/scan/json", jsonPayload);
 
         // Assert
         response.StatusCode.ShouldBe(HttpStatusCode.OK);
@@ -537,18 +550,20 @@ public class ContainerBlackBoxTests
     public async Task JsonScan_ShouldDetectEicarInMixedContent()
     {
         // Arrange
-        var payload = JsonDocument.Parse(@"{
+        var jsonPayload = new StringContent(
+            @"{
             ""file"": ""X5O!P%@AP[4\\PZX54(P^)7CC)7}$EICAR-STANDARD-ANTIVIRUS-TEST-FILE!$H+H*"",
             ""documents"": [
                 { ""content"": ""anVzdCBzb21lIHJhbmRvbSBzdHJpbmc="" },
                 { ""content"": ""Y2xlYW4gZGF0YQ=="" }
             ]
-        }").RootElement;
-
-        var scanRequest = new JsonScanRequest { Payload = payload };
+        }",
+            Encoding.UTF8,
+            new System.Net.Http.Headers.MediaTypeHeaderValue("application/json")
+        );
 
         // Act
-        var response = await _httpClient.PostAsJsonAsync($"{_baseUrl}/scan/json", scanRequest);
+        var response = await _httpClient.PostAsync($"{_baseUrl}/scan/json", jsonPayload);
 
         // Assert
         response.StatusCode.ShouldBe(HttpStatusCode.NotAcceptable); // 406 for infected
@@ -564,18 +579,20 @@ public class ContainerBlackBoxTests
     public async Task JsonScan_ShouldReturnDetailedScanInfo()
     {
         // Arrange
-        var payload = JsonDocument.Parse(@"{
+        var jsonPayload = new StringContent(
+            @"{
             ""file"": ""anVzdCBzb21lIHJhbmRvbSBzdHJpbmc="",
             ""metadata"": {
                 ""source"": ""email"",
                 ""timestamp"": ""2026-02-21T12:00:00Z""
             }
-        }").RootElement;
-
-        var scanRequest = new JsonScanRequest { Payload = payload };
+        }",
+            Encoding.UTF8,
+            new System.Net.Http.Headers.MediaTypeHeaderValue("application/json")
+        );
 
         // Act
-        var response = await _httpClient.PostAsJsonAsync($"{_baseUrl}/scan/json", scanRequest);
+        var response = await _httpClient.PostAsync($"{_baseUrl}/scan/json", jsonPayload);
 
         // Assert
         response.StatusCode.ShouldBe(HttpStatusCode.OK);
