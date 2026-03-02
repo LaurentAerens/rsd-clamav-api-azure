@@ -513,10 +513,10 @@ namespace Arcus.ClamAV.Api.Client
 
         /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
         /// <exception cref="ClamAvApiException">A server side error occurred.</exception>
-        public virtual async System.Threading.Tasks.Task<JsonScanResult> ScanJsonAsync(JsonScanRequest jsonRequest, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken))
+        public virtual async System.Threading.Tasks.Task<JsonScanResult> ScanJsonAsync(object jsonPayload, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken))
         {
-            if (jsonRequest == null)
-                throw new System.ArgumentNullException("jsonRequest");
+            if (jsonPayload == null)
+                throw new System.ArgumentNullException("jsonPayload");
 
             var client_ = _httpClient;
             var disposeClient_ = false;
@@ -524,7 +524,7 @@ namespace Arcus.ClamAV.Api.Client
             {
                 using (var request_ = new System.Net.Http.HttpRequestMessage())
                 {
-                    var json_ = System.Text.Json.JsonSerializer.SerializeToUtf8Bytes(jsonRequest, JsonSerializerSettings);
+                    var json_ = System.Text.Json.JsonSerializer.SerializeToUtf8Bytes(jsonPayload, JsonSerializerSettings);
                     var content_ = new System.Net.Http.ByteArrayContent(json_);
                     content_.Headers.ContentType = System.Net.Http.Headers.MediaTypeHeaderValue.Parse("application/json");
                     request_.Content = content_;

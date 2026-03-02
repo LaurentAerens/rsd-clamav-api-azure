@@ -2,7 +2,6 @@ using Arcus.ClamAV.Handlers;
 using Arcus.ClamAV.Models;
 using Arcus.ClamAV.Services;
 using Microsoft.AspNetCore.Http;
-using nClam;
 
 namespace Arcus.ClamAV.Tests.Handlers;
 
@@ -11,7 +10,7 @@ public class FileScanHandlerTests
     private readonly Mock<IScanJobService> _jobServiceMock;
     private readonly Mock<IScanProcessingService> _scanProcessingMock;
     private readonly Mock<IBackgroundTaskQueue> _backgroundServiceMock;
-    private readonly Mock<IClamAvScanService> _clamAvScanServiceMock;
+    private readonly Mock<ISyncScanService> _syncScanServiceMock;
     private readonly FileScanHandler _handler;
 
     public FileScanHandlerTests()
@@ -19,13 +18,13 @@ public class FileScanHandlerTests
         _jobServiceMock = new Mock<IScanJobService>();
         _scanProcessingMock = new Mock<IScanProcessingService>();
         _backgroundServiceMock = new Mock<IBackgroundTaskQueue>();
-        _clamAvScanServiceMock = new Mock<IClamAvScanService>();
+        _syncScanServiceMock = new Mock<ISyncScanService>();
 
         _handler = new FileScanHandler(
             _jobServiceMock.Object,
             _scanProcessingMock.Object,
             _backgroundServiceMock.Object,
-            _clamAvScanServiceMock.Object);
+            _syncScanServiceMock.Object);
     }
 
     #region HandleSyncAsync Tests
@@ -63,8 +62,14 @@ public class FileScanHandlerTests
         var fileContent = "clean file content"u8.ToArray();
         var mockFile = CreateMockFormFile("test.txt", fileContent);
 
-        var scanResult = new ClamScanResult("No virus found");
-        _clamAvScanServiceMock.Setup(s => s.ScanFileAsync(It.IsAny<Stream>(), It.IsAny<long>()))
+        var scanResult = new SyncScanResult
+        {
+            IsSuccess = true,
+            Status = "clean",
+            Malware = null,
+            DurationMs = 5.0
+        };
+        _syncScanServiceMock.Setup(s => s.ScanStreamAsync(It.IsAny<Stream>(), It.IsAny<long>()))
             .ReturnsAsync(scanResult);
 
         // Act
@@ -75,8 +80,8 @@ public class FileScanHandlerTests
         httpResult.ShouldNotBeNull();
         
         // Verify the service was called with correct file size
-        _clamAvScanServiceMock.Verify(
-            s => s.ScanFileAsync(It.IsAny<Stream>(), (long)fileContent.Length),
+        _syncScanServiceMock.Verify(
+            s => s.ScanStreamAsync(It.IsAny<Stream>(), (long)fileContent.Length),
             Times.Once);
     }
 
@@ -87,8 +92,14 @@ public class FileScanHandlerTests
         var fileContent = "test file"u8.ToArray();
         var mockFile = CreateMockFormFile("test.txt", fileContent);
 
-        var scanResult = new ClamScanResult("Test result from clamd");
-        _clamAvScanServiceMock.Setup(s => s.ScanFileAsync(It.IsAny<Stream>(), It.IsAny<long>()))
+        var scanResult = new SyncScanResult
+        {
+            IsSuccess = true,
+            Status = "clean",
+            Malware = null,
+            DurationMs = 2.5
+        };
+        _syncScanServiceMock.Setup(s => s.ScanStreamAsync(It.IsAny<Stream>(), It.IsAny<long>()))
             .ReturnsAsync(scanResult);
 
         // Act
@@ -96,7 +107,7 @@ public class FileScanHandlerTests
 
         // Assert
         result.ShouldNotBeNull();
-        _clamAvScanServiceMock.Verify(s => s.ScanFileAsync(It.IsAny<Stream>(), It.IsAny<long>()), Times.Once);
+        _syncScanServiceMock.Verify(s => s.ScanStreamAsync(It.IsAny<Stream>(), It.IsAny<long>()), Times.Once);
     }
 
     #endregion

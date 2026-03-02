@@ -1,5 +1,8 @@
+using System;
 using System.Net;
+using System.Net.Http;
 using System.Net.Http.Json;
+using System.Text;
 using System.Text.Json;
 using Arcus.ClamAV.Models;
 using Shouldly;
@@ -582,5 +585,67 @@ public class ContainerBlackBoxTests
         result.Details[0].Name.ShouldNotBeNullOrEmpty();
         result.Details[0].Type.ShouldNotBeNullOrEmpty();
         result.Details[0].Size.ShouldBeGreaterThan(0);
+    }
+
+    /// <summary>
+    /// Verify JSON scan detects EICAR at root level (new API design).
+    /// Tests the updated API that scans the entire JSON body, not just nested properties.
+    /// </summary>
+    [Fact(DisplayName = "JSON scan should detect EICAR at root level (raw JSON API)")]
+    public async Task JsonScan_ShouldDetectEicarAtRootLevel()
+    {
+        // Arrange - Send raw JSON directly (no wrapper), with EICAR at root level
+        var jsonPayload = new StringContent(
+            @"{
+                ""testItem"": ""X5O!P%@AP[4\\PZX54(P^)7CC)7}$EICAR-STANDARD-ANTIVIRUS-TEST-FILE!$H+H*"",
+                ""metadata"": {
+                    ""source"": ""api-test"",
+                    ""timestamp"": ""2026-03-02T00:00:00Z""
+                }
+            }",
+            Encoding.UTF8,
+            new System.Net.Http.Headers.MediaTypeHeaderValue("application/json")
+        );
+
+        // Act
+        var response = await _httpClient.PostAsync($"{_baseUrl}/scan/json", jsonPayload);
+
+        // Assert
+        response.StatusCode.ShouldBe(HttpStatusCode.NotAcceptable); // 406 for infected
+        var result = await response.Content.ReadFromJsonAsync<JsonScanResult>();
+        result.ShouldNotBeNull();
+        result!.Status.ShouldBe("infected");
+        result.Malware.ShouldContain("EICAR");
+        result.InfectedItem.ShouldBe("testItem"); // Root-level property should be scanned
+    }
+
+    /// <summary>
+    /// Verify JSON scan accepts clean raw JSON at root level (new API design).
+    /// </summary>
+    [Fact(DisplayName = "JSON scan should accept clean raw JSON at root level")]
+    public async Task JsonScan_ShouldAcceptCleanRawJson()
+    {
+        // Arrange - Send raw JSON directly with no malware
+        var jsonPayload = new StringContent(
+            @"{
+                ""data1"": ""clean content"",
+                ""data2"": ""YW5vdGhlciBjbGVhbiBzdHJpbmc="",
+                ""nested"": {
+                    ""deep"": ""bW9yZSBjbGVhbiBkYXRh""
+                }
+            }",
+            Encoding.UTF8,
+            new System.Net.Http.Headers.MediaTypeHeaderValue("application/json")
+        );
+
+        // Act
+        var response = await _httpClient.PostAsync($"{_baseUrl}/scan/json", jsonPayload);
+
+        // Assert
+        response.StatusCode.ShouldBe(HttpStatusCode.OK);
+        var result = await response.Content.ReadFromJsonAsync<JsonScanResult>();
+        result.ShouldNotBeNull();
+        result!.Status.ShouldBe("clean");
+        result.ItemsScanned.ShouldBeGreaterThan(0);
     }
 }
