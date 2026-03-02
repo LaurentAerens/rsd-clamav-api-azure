@@ -1,6 +1,5 @@
 using Arcus.ClamAV.Models;
 using Arcus.ClamAV.Services;
-using nClam;
 using System.Net;
 
 namespace Arcus.ClamAV.Handlers;
@@ -9,7 +8,7 @@ public class FileScanHandler(
     IScanJobService jobService,
     IScanProcessingService scanProcessing,
     IBackgroundTaskQueue backgroundService,
-    IClamAvScanService clamAvScanService)
+    ISyncScanService syncScanService)
 {
     public async Task<IResult> HandleSyncAsync(IFormFile file)
     {
@@ -19,30 +18,28 @@ public class FileScanHandler(
         }
 
         await using var stream = file.OpenReadStream();
-        var startTime = DateTime.UtcNow;
-        var result = await clamAvScanService.ScanFileAsync(stream, file.Length);
-        var scanDuration = DateTime.UtcNow - startTime;
+        var scanResult = await syncScanService.ScanStreamAsync(stream, file.Length);
 
-        return result.Result switch
+        return scanResult.Status switch
         {
-            ClamScanResults.Clean => Results.Ok(new ScanResponse
+            "clean" => Results.Ok(new ScanResponse
             {
                 Status = "clean",
                 Engine = "clamav",
                 FileName = file.FileName,
                 Size = file.Length,
-                ScanDurationMs = scanDuration.TotalMilliseconds
+                ScanDurationMs = scanResult.DurationMs
             }),
-            ClamScanResults.VirusDetected => Results.Json(new ScanResponse
+            "infected" => Results.Json(new ScanResponse
             {
                 Status = "infected",
                 Engine = "clamav",
-                Malware = result.InfectedFiles?.FirstOrDefault()?.VirusName ?? "unknown",
+                Malware = scanResult.Malware,
                 FileName = file.FileName,
                 Size = file.Length,
-                ScanDurationMs = scanDuration.TotalMilliseconds
+                ScanDurationMs = scanResult.DurationMs
             }, statusCode: (int)HttpStatusCode.NotAcceptable),
-            _ => Results.Problem($"Scan error: {result.RawResult}", statusCode: (int)HttpStatusCode.InternalServerError)
+            _ => Results.Problem($"Scan error: {scanResult.Error}", statusCode: (int)HttpStatusCode.InternalServerError)
         };
     }
 

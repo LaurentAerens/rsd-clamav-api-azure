@@ -7,4 +7,15 @@ queries:
       - cs/empty-catch-block
 
 paths-ignore:
+  # Exclude auto-generated code (NSwag API client)
   - '**/Generated/**'
+  - 'src/Arcus.ClamAV.Api.Client/Generated/**'
+  
+  # Exclude test projects (not deployed to production)
+  - 'src/Arcus.ClamAV.Tests/**'
+  - '**/*.Tests/**'
+  - '**/TestResults/**'
+  
+  # Exclude build artifacts
+  - '**/bin/**'
+  - '**/obj/**'

@@ -50,7 +50,7 @@ namespace Arcus.ClamAV.Api.Client.Contracts
 
         /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
         /// <exception cref="ClamAvApiException">A server side error occurred.</exception>
-        System.Threading.Tasks.Task<JsonScanResult> ScanJsonAsync(JsonScanRequest jsonRequest, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken));
+        System.Threading.Tasks.Task<JsonScanResult> ScanJsonAsync(object jsonPayload, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken));
 
         /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
         /// <exception cref="ClamAvApiException">A server side error occurred.</exception>
@@ -385,39 +385,6 @@ namespace Arcus.ClamAV.Api.Client.Contracts
                 options.Converters.Add(converter);
 
             return System.Text.Json.JsonSerializer.Deserialize<ScannedItemDetail>(data, options);
-
-        }
-    }
-
-    [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "14.6.3.0 (NJsonSchema v11.5.2.0 (Newtonsoft.Json v13.0.0.0))")]
-    public partial class JsonScanRequest
-    {
-
-        [System.Text.Json.Serialization.JsonPropertyName("payload")]
-        public object Payload { get; set; }
-
-        public string ToJson()
-        {
-
-            var options = new System.Text.Json.JsonSerializerOptions();
-
-            var converters = new System.Text.Json.Serialization.JsonConverter[] { new System.Text.Json.Serialization.JsonStringEnumConverter() };
-            foreach(var converter in converters)
-                options.Converters.Add(converter);
-
-            return System.Text.Json.JsonSerializer.Serialize(this, options);
-
-        }
-        public static JsonScanRequest FromJson(string data)
-        {
-
-            var options = new System.Text.Json.JsonSerializerOptions();
-
-            var converters = new System.Text.Json.Serialization.JsonConverter[] { new System.Text.Json.Serialization.JsonStringEnumConverter() };
-            foreach(var converter in converters)
-                options.Converters.Add(converter);
-
-            return System.Text.Json.JsonSerializer.Deserialize<JsonScanRequest>(data, options);
 
         }
     }

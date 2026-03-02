@@ -1,6 +1,5 @@
 using Arcus.ClamAV.Models;
 using Arcus.ClamAV.Services;
-using nClam;
 using System.Text;
 using System.Text.Json;
 
@@ -8,10 +7,10 @@ namespace Arcus.ClamAV.Handlers;
 
 public class JsonScanHandler(
     IJsonBase64ExtractorService extractorService,
-    IClamAvScanService clamAvScanService,
+    ISyncScanService syncScanService,
     ILogger<JsonScanHandler> logger)
 {
-    public async Task<IResult> HandleAsync(JsonScanRequest request)
+    public async Task<IResult> HandleAsync(JsonElement jsonPayload)
     {
         var startTime = DateTime.UtcNow;
         var result = new JsonScanResult
@@ -25,8 +24,8 @@ public class JsonScanHandler(
         try
         {
             // 1. Extract base64 items and string values
-            var base64Items = extractorService.ExtractBase64Properties(request.Payload);
-            var stringValues = ExtractStringValues(request.Payload);
+            var base64Items = extractorService.ExtractBase64Properties(jsonPayload);
+            var stringValues = ExtractStringValues(jsonPayload);
             result.Base64ItemsFound = base64Items.Count;
 
             logger.LogInformation("Found {Base64Count} base64 items and {StringCount} string values in JSON payload", 
@@ -36,7 +35,7 @@ public class JsonScanHandler(
             foreach (var item in base64Items)
             {
                 using var memoryStream = new MemoryStream(item.DecodedContent);
-                var scanResult = await clamAvScanService.ScanFileAsync(memoryStream, item.DecodedContent.Length);
+                var scanResult = await syncScanService.ScanStreamAsync(memoryStream, item.DecodedContent.Length);
                 result.ItemsScanned++;
 
                 var detail = new ScannedItemDetail
@@ -44,34 +43,41 @@ public class JsonScanHandler(
                     Name = item.Path,
                     Type = "base64_decoded",
                     Size = item.DecodedContent.Length,
-                    Status = scanResult.Result == ClamScanResults.Clean ? "clean" : "infected"
+                    Status = scanResult.Status
                 };
 
-                if (scanResult.Result == ClamScanResults.VirusDetected)
+                if (scanResult.Status == "infected")
                 {
-                    var virusName = scanResult.InfectedFiles?.FirstOrDefault()?.VirusName ?? "unknown";
-                    detail.Malware = virusName;
+                    detail.Malware = scanResult.Malware;
                     result.Status = "infected";
-                    result.Malware = virusName;
+                    result.Malware = scanResult.Malware;
                     result.InfectedItem = item.Path;
 
-                    logger.LogWarning("Malware detected in base64 property '{Path}': {Virus}", item.Path, virusName);
+                    logger.LogWarning("Malware detected in base64 property '{Path}': {Virus}", item.Path, scanResult.Malware);
                     result.Details.Add(detail);
+                    result.ScanDurationMs = (DateTime.UtcNow - startTime).TotalMilliseconds;
                     return Results.Json(result, statusCode: 406);
                 }
 
                 result.Details.Add(detail);
             }
 
-            // 3. Scan each plaintext string value
+            // 3. Scan each plaintext string value (skip if already identified as base64)
             foreach (var stringValue in stringValues)
             {
+                // Skip if this path was already identified as base64
+                if (extractorService.IsBase64Path(stringValue.Path))
+                {
+                    logger.LogDebug("Skipping plaintext scan for '{Path}' (already scanned as base64)", stringValue.Path);
+                    continue;
+                }
+
                 if (string.IsNullOrWhiteSpace(stringValue.Content))
                     continue;
 
                 var stringBytes = Encoding.UTF8.GetBytes(stringValue.Content);
                 using var stringStream = new MemoryStream(stringBytes);
-                var scanResult = await clamAvScanService.ScanFileAsync(stringStream, stringBytes.Length);
+                var scanResult = await syncScanService.ScanStreamAsync(stringStream, stringBytes.Length);
                 result.ItemsScanned++;
 
                 var detail = new ScannedItemDetail
@@ -79,19 +85,19 @@ public class JsonScanHandler(
                     Name = stringValue.Path,
                     Type = "plaintext",
                     Size = stringBytes.Length,
-                    Status = scanResult.Result == ClamScanResults.Clean ? "clean" : "infected"
+                    Status = scanResult.Status
                 };
 
-                if (scanResult.Result == ClamScanResults.VirusDetected)
+                if (scanResult.Status == "infected")
                 {
-                    var virusName = scanResult.InfectedFiles?.FirstOrDefault()?.VirusName ?? "unknown";
-                    detail.Malware = virusName;
+                    detail.Malware = scanResult.Malware;
                     result.Status = "infected";
-                    result.Malware = virusName;
+                    result.Malware = scanResult.Malware;
                     result.InfectedItem = stringValue.Path;
 
-                    logger.LogWarning("Malware detected in plaintext property '{Path}': {Virus}", stringValue.Path, virusName);
+                    logger.LogWarning("Malware detected in plaintext property '{Path}': {Virus}", stringValue.Path, scanResult.Malware);
                     result.Details.Add(detail);
+                    result.ScanDurationMs = (DateTime.UtcNow - startTime).TotalMilliseconds;
                     return Results.Json(result, statusCode: 406);
                 }
 

@@ -10,6 +10,7 @@ public partial class JsonBase64ExtractorService : IJsonBase64ExtractorService
 {
     private readonly ILogger<JsonBase64ExtractorService> _logger;
     private const int MinBase64Length = 20; // Minimum length to consider as potential base64 content
+    private HashSet<string>? _base64Paths; // Tracks paths identified as base64
 
     public JsonBase64ExtractorService(ILogger<JsonBase64ExtractorService> logger)
     {
@@ -19,10 +20,16 @@ public partial class JsonBase64ExtractorService : IJsonBase64ExtractorService
     /// <inheritdoc />
     public List<Base64Extract> ExtractBase64Properties(JsonElement jsonElement)
     {
+        _base64Paths = new HashSet<string>();
         var extracts = new List<Base64Extract>();
         ExtractRecursive(jsonElement, "", extracts);
         return extracts;
     }
+
+    /// <summary>
+    /// Check if a path was identified as containing base64 content.
+    /// </summary>
+    public bool IsBase64Path(string path) => _base64Paths?.Contains(path) ?? false;
 
     private void ExtractRecursive(JsonElement element, string currentPath, List<Base64Extract> extracts)
     {
@@ -69,6 +76,7 @@ public partial class JsonBase64ExtractorService : IJsonBase64ExtractorService
                                 Path = currentPath,
                                 DecodedContent = decoded
                             });
+                            _base64Paths?.Add(currentPath);
                         }
                     }
                     catch (FormatException)

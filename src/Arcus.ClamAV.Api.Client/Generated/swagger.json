@@ -200,12 +200,10 @@
         ],
         "operationId": "ScanJson",
         "requestBody": {
-          "x-name": "jsonRequest",
+          "x-name": "jsonPayload",
           "content": {
             "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/JsonScanRequest"
-              }
+              "schema": {}
             }
           },
           "required": true,
@@ -450,13 +448,6 @@
             "type": "string",
             "nullable": true
           }
-        }
-      },
-      "JsonScanRequest": {
-        "type": "object",
-        "additionalProperties": false,
-        "properties": {
-          "payload": {}
         }
       },
       "ScanStatusResponse": {

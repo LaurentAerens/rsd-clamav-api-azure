@@ -72,6 +72,7 @@ builder.Services.AddSingleton<IScanJobService, ScanJobService>();
 builder.Services.AddSingleton<IJsonBase64ExtractorService, JsonBase64ExtractorService>();
 builder.Services.AddSingleton<IClamClientFactory, ClamClientFactory>();
 builder.Services.AddScoped<IClamAvScanService, ClamAvScanService>();
+builder.Services.AddScoped<ISyncScanService, SyncScanService>();
 builder.Services.AddScoped<IHttpClientWrapperFactory, HttpClientWrapperFactory>();
 
 // Register telemetry service (safe to use even if Application Insights is not configured)

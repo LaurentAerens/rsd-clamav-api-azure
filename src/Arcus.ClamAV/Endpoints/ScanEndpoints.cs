@@ -1,6 +1,7 @@
 using Arcus.ClamAV.Handlers;
 using Arcus.ClamAV.Models;
 using Arcus.ClamAV.Services;
+using System.Text.Json;
 
 namespace Arcus.ClamAV.Endpoints;
 
@@ -43,14 +44,13 @@ public static class ScanEndpoints
             .WithDescription("Download a file from a URL and scan it asynchronously. Returns immediately with job ID. Download and scan happen in background. Set 'isBase64' to true if the URL is Base64 encoded.");
 
         // JSON scan endpoint
-        scanGroup.MapPost("/json", async (JsonScanRequest jsonRequest, JsonScanHandler handler) =>
-            await handler.HandleAsync(jsonRequest))
-            .Accepts<JsonScanRequest>("application/json")
+        scanGroup.MapPost("/json", async (JsonElement jsonPayload, JsonScanHandler handler) =>
+            await handler.HandleAsync(jsonPayload))
             .Produces<JsonScanResult>(200)
             .Produces<JsonScanResult>(406)
             .Produces(500)
             .WithName("ScanJson")
-            .WithDescription("Scan a JSON payload for malware. Automatically detects and decodes any base64-encoded properties, scans each decoded item plus the full JSON text. Perfect for Azure Logic Apps and Functions. Returns 200 for clean content, 406 for infected content.");
+            .WithDescription("Scan a JSON payload for malware. Automatically detects and decodes any base64-encoded properties, scans each decoded item plus all string values. Perfect for Azure Logic Apps and Functions. Returns 200 for clean content, 406 for infected content.");
 
         // Check scan status
         scanGroup.MapGet("/async/{jobId}", (string jobId, IScanJobService jobService) =>

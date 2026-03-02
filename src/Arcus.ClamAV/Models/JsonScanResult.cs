@@ -11,7 +11,7 @@ public class JsonScanResult
     public required string Status { get; set; }
 
     /// <summary>
-    /// Total number of items scanned (JSON text + decoded base64 items)
+    /// Total number of items scanned (decoded base64 items + plaintext string values, excluding base64 paths)
     /// </summary>
     public int ItemsScanned { get; set; }
 
@@ -36,7 +36,7 @@ public class JsonScanResult
     public double ScanDurationMs { get; set; }
 
     /// <summary>
-    /// Details about each scanned item
+    /// Details about each scanned item (base64-decoded and plaintext strings)
     /// </summary>
     public List<ScannedItemDetail> Details { get; set; } = new();
 }

@@ -29,4 +29,12 @@ public interface IJsonBase64ExtractorService
     /// <param name="jsonElement">The JSON element to search</param>
     /// <returns>List of base64 items found and decoded</returns>
     List<Base64Extract> ExtractBase64Properties(JsonElement jsonElement);
+
+    /// <summary>
+    /// Check if a path was identified as containing base64 content.
+    /// Must be called after ExtractBase64Properties.
+    /// </summary>
+    /// <param name="path">Path to check</param>
+    /// <returns>True if path was identified as base64 during extraction</returns>
+    bool IsBase64Path(string path);
 }

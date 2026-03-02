@@ -45,6 +45,7 @@ flowchart TB
         SyncEP["/scan<br/>(sync)"]
         AsyncEP["/scan/async<br/>(file upload)"]
         UrlEP["/scan/async/url<br/>(URL scan)"]
+        JsonEP["/scan/json<br/>(JSON payload)"]
         StatusEP["/scan/async/{jobId}<br/>(status)"]
         JobsEP["/scan/jobs<br/>(list jobs)"]
     end
@@ -55,12 +56,14 @@ flowchart TB
     subgraph HANDLERS["Handlers"]
         FileScanHandler["FileScanHandler"]
         UrlScanHandler["UrlScanHandler"]
+        JsonScanHandler["JsonScanHandler"]
     end
 
     %% ─────────────────────────────
     %% Services
     %% ─────────────────────────────
     subgraph SERVICES["Core Services"]
+        SyncScanService["SyncScanService<br/>(Unified Scan Logic)"]
         JobService["ScanJobService"]
         InfoService["ClamAvInfoService"]
     end
@@ -97,6 +100,7 @@ flowchart TB
     Client --> SyncEP
     Client --> AsyncEP
     Client --> UrlEP
+    Client --> JsonEP
     Client --> StatusEP
     Client --> JobsEP
 
@@ -107,6 +111,7 @@ flowchart TB
     SyncEP --> FileScanHandler
     AsyncEP --> FileScanHandler
     UrlEP --> UrlScanHandler
+    JsonEP --> JsonScanHandler
 
     StatusEP --> JobService
     JobsEP --> JobService
@@ -114,12 +119,16 @@ flowchart TB
     %% ─────────────────────────────
     %% Handler Logic
     %% ─────────────────────────────
-    FileScanHandler -->|sync scan| ClamD
+    FileScanHandler -->|sync scan| SyncScanService
     FileScanHandler -->|async save| TempFiles
     FileScanHandler -->|create job| JobService
 
     UrlScanHandler -->|create job| JobService
     UrlScanHandler -->|queue job| Channel
+
+    JsonScanHandler -->|scan in memory| SyncScanService
+
+    SyncScanService -->|wraps| ClamD
 
     TempFiles -->|enqueue| Channel
 
@@ -151,8 +160,9 @@ flowchart TB
 
 **Synchronous Scan Flow:**
 1. Client uploads file to `/scan`
-2. API immediately scans with ClamAV
-3. Returns result (clean/infected/error)
+2. FileScanHandler calls SyncScanService (unified scan logic)
+3. SyncScanService scans with ClamAV and returns standardized result
+4. Returns result (clean/infected/error)
 
 **Asynchronous File Upload Flow:**
 1. Client uploads file to `/scan/async`
@@ -194,6 +204,7 @@ flowchart TB
         │   ├── FileScanHandler.cs      # Handles file upload scans
         │   └── UrlScanHandler.cs       # Handles URL download scans
         ├── Services/                   # Background & domain services
+        │   ├── SyncScanService.cs          # Unified scan logic for handlers
         │   ├── BackgroundScanService.cs    # Background job processor
         │   ├── ScanJobService.cs           # Job tracking & management
         │   └── ClamAvInfoService.cs        # ClamAV version info
@@ -334,31 +345,32 @@ curl http://localhost:8080/scan/async/def-456
 ---
 � JSON Payload Scanning (Azure Integration)
 
-The `/scan/json` endpoint is designed for Azure Logic Apps, Functions, and Power Automate integrations where file content is often embedded as base64 within JSON messages.
+The `/scan/json` endpoint is designed for Azure Logic Apps, Functions, and Power Automate integrations where file content is often embedded as base64 within JSON messages. The endpoint scans the **entire JSON body** for malware.
 
 ### How It Works
 
-1. Send a JSON payload to `/scan/json`
-2. The API recursively searches through all JSON properties
+1. Send any JSON payload to `/scan/json`
+2. The API recursively searches through all JSON properties for base64-encoded content
 3. Any property containing base64-encoded data is automatically detected and decoded
 4. Each decoded item is scanned for malware
-5. The full JSON text is also scanned
-6. Returns comprehensive results showing what was found and scanned
+5. All other plaintext string values are also scanned (except those already identified as base64)
+6. Returns comprehensive results with details about each scanned item
+7. Returns 406 if malware is detected in any item; 200 if all items are clean
 
-### Example: Azure Logic App Payload
+### Example 1: Raw JSON (Recommended)
+
+Send raw JSON directly — the API scans everything:
 
 ```bash
 curl -X POST http://localhost:8080/scan/json \
   -H "Content-Type: application/json" \
   -d '{
-    "payload": {
-      "messageId": "abc-123",
-      "timestamp": "2024-01-01T10:00:00Z",
-      "sender": "user@example.com",
-      "attachment": {
-        "fileName": "document.pdf",
-        "contentBytes": "JVBERi0xLjQKJeLjz9MKMSAwIG9iago8PC9UeXBlL0NhdGFsb2cvUGFnZXMgMiAwIFI+PgplbmRvYmoKMiAwIG9iago8PC9UeXBlL1BhZ2VzL0tpZHNbMyAwIFJdL0NvdW50IDE+PgplbmRvYmoKMyAwIG9iago8PC9UeXBlL1BhZ2UvUGFyZW50IDIgMCBSPj4KZW5kb2JqCnhyZWYKMCA0CjAwMDAwMDAwMDAgNjU1MzUgZgowMDAwMDAwMDE1IDAwMDAwIG4KMDAwMDAwMDA2MCAwMDAwMCBuCjAwMDAwMDAxMTUgMDAwMDAgbgp0cmFpbGVyPDwvUm9vdCAxIDAgUi9TaXplIDQ+PgpzdGFydHhyZWYKMTY1CiUlRU9G"
-      }
+    "messageId": "abc-123",
+    "timestamp": "2024-01-01T10:00:00Z",
+    "sender": "user@example.com",
+    "attachment": {
+      "fileName": "document.pdf",
+      "contentBytes": "JVBERi0xLjQKJeLjz9MKMSAwIG9iago8PC9UeXBlL0NhdGFsb2cvUGFnZXMgMiAwIFI+PgplbmRvYmoKMiAwIG9iago8PC9UeXBlL1BhZ2VzL0tpZHNbMyAwIFJdL0NvdW50IDE+PgplbmRvYmoKMyAwIG9iago8PC9UeXBlL1BhZ2UvUGFyZW50IDIgMCBSPj4KZW5kb2JqCnhyZWYKMCA0CjAwMDAwMDAwMDAgNjU1MzUgZgowMDAwMDAwMDE1IDAwMDAwIG4KMDAwMDAwMDA2MCAwMDAwMCBuCjAwMDAwMDAxMTUgMDAwMDAgbgp0cmFpbGVyPDwvUm9vdCAxIDAgUi9TaXplIDQ+PgpzdGFydHhyZWYKMTY1CiUlRU9G"
     }
   }'
 ```
@@ -367,21 +379,61 @@ Response:
 ```json
 {
   "status": "clean",
-  "itemsScanned": 2,
+  "itemsScanned": 3,
   "base64ItemsFound": 1,
   "scanDurationMs": 145.7,
   "details": [
     {
-      "name": "payload.attachment.contentBytes",
+      "name": "attachment.contentBytes",
       "type": "base64_decoded",
       "size": 165,
       "status": "clean"
     },
     {
-      "name": "json_payload",
-      "type": "json_text",
-      "size": 423,
+      "name": "sender",
+      "type": "plaintext",
+      "size": 18,
       "status": "clean"
+    },
+    {
+      "name": "messageId",
+      "type": "plaintext",
+      "size": 7,
+      "status": "clean"
+    }
+  ]
+}
+```
+
+### Example 2: Detection of Malware at Root Level
+
+The API scans all properties, including root-level ones:
+
+```bash
+curl -X POST http://localhost:8080/scan/json \
+  -H "Content-Type: application/json" \
+  -d '{
+    "data": "X5O!P%@AP[4\\PZX54(P^)7CC)7}$EICAR-STANDARD-ANTIVIRUS-TEST-FILE!$H+H*",
+    "metadata": "clean"
+  }'
+```
+
+Response (HTTP 406 Infected):
+```json
+{
+  "status": "infected",
+  "malware": "Win.Test.EICAR_HDB-1",
+  "infectedItem": "data",
+  "itemsScanned": 2,
+  "base64ItemsFound": 0,
+  "scanDurationMs": 89.3,
+  "details": [
+    {
+      "name": "data",
+      "type": "plaintext",
+      "size": 68,
+      "status": "infected",
+      "malware": "Win.Test.EICAR_HDB-1"
     }
   ]
 }
@@ -390,18 +442,20 @@ Response:
 ### What Gets Detected as Base64?
 
 The API uses smart detection:
-- **Minimum length**: 100 characters (avoids false positives)
+- **Minimum length**: 20 characters (avoids false positives)
 - **Character set**: Only valid base64 characters (A-Z, a-z, 0-9, +, /, =)
 - **Proper format**: Correct padding and length (multiple of 4)
-- **Validation**: Successfully decodes without errors
+- **Validation**: Successfully decodes to at least 10 bytes without errors
+- **No double-scan**: Plaintext strings identified as base64 are not scanned again as plaintext
 
 ### Benefits for Azure Integrations
 
 ✅ **No pre-processing needed** – Send Logic App output directly  
 ✅ **Multi-file support** – Scans all base64 properties in arrays/nested objects  
-✅ **Comprehensive scanning** – Both decoded binaries AND JSON text  
-✅ **Clear results** – Know exactly which item was infected  
-✅ **Flexible structure** – No required JSON schema
+✅ **Multi-type scanning** – Scans decoded binaries AND plaintext values  
+✅ **Clear results** – Know exactly which item was infected and its type  
+✅ **Flexible structure** – No required JSON schema  
+✅ **Efficient** – Avoids double-scanning properties already decoded as base64
 
 ### Example: Multiple Attachments
 
@@ -427,8 +481,7 @@ curl -X POST http://localhost:8080/scan/json \
   }'
 ```
 
-The API will find and scan both `attachments[0].data` and `attachments[1].data`, plus the full JSON.
-💡 *Binary files (with Content-Type like `application/octet-stream`, `image/*`, etc.) skip Base64 detection for better performance.*
+The API will find and scan both `attachments[0].data` and `attachments[1].data`, as well as plaintext values like `subject`.
 
 ---
 

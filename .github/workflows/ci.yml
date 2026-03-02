@@ -17,7 +17,7 @@ concurrency:
 jobs:
   # Core Build & Unit Tests
   build-and-test:
-    name: Build & Unit Tests
+    name: Build & All Tests (Unit + BlackBox)
     uses: ./.github/workflows/build-test-template.yml
     with:
       project_name: ClamAV.Api
@@ -34,12 +34,12 @@ jobs:
     steps:
       - name: Check Quality Gates
         run: |
-          echo "## Build & Unit Tests Status"
-          echo "Build and unit tests: ${{ needs.build-and-test.result }}"
+          echo "## Build & Tests Status"
+          echo "Build and tests (Unit + BlackBox): ${{ needs.build-and-test.result }}"
           
           if [[ "${{ needs.build-and-test.result }}" == "failure" ]]; then
             echo "❌ Build or tests failed"
             exit 1
           fi
           
-          echo "✅ Core quality gates passed!"
+          echo "✅ All quality gates passed!"
