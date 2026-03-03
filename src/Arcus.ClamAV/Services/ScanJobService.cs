@@ -92,18 +92,16 @@ public class ScanJobService(ILogger<ScanJobService> logger) : IScanJobService
     {
         var cutoff = DateTime.UtcNow - maxAge;
         var oldJobs = _jobs.Where(kvp => kvp.Value.CreatedAt < cutoff).Select(kvp => kvp.Key).ToList();
+        var removedJobs = oldJobs.Where(jobId => _jobs.TryRemove(jobId, out _)).ToList();
 
-        foreach (var jobId in oldJobs)
+        foreach (var jobId in removedJobs)
         {
-            if (_jobs.TryRemove(jobId, out _))
-            {
-                logger.LogDebug("Cleaned up old scan job {JobId}", jobId);
-            }
+            logger.LogDebug("Cleaned up old scan job {JobId}", jobId);
         }
 
-        if (oldJobs.Count > 0)
+        if (removedJobs.Count > 0)
         {
-            logger.LogInformation("Cleaned up {Count} old scan jobs", oldJobs.Count);
+            logger.LogInformation("Cleaned up {Count} old scan jobs", removedJobs.Count);
         }
     }
 

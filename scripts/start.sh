@@ -29,9 +29,13 @@ fi
 # Run one foreground update to ensure databases exist
 echo "[start.sh] Running initial freshclam update..."
 if [[ $EUID -eq 0 ]]; then
-  su -s /bin/sh -c '/usr/bin/freshclam --stdout --verbose' clamav || true
+  if ! su -s /bin/sh -c '/usr/bin/freshclam --stdout --verbose' clamav; then
+    echo "[start.sh] Warning: freshclam update failed (including optional mirrors). Continuing startup with available signatures."
+  fi
 else
-  /usr/bin/freshclam --stdout --verbose || true
+  if ! /usr/bin/freshclam --stdout --verbose; then
+    echo "[start.sh] Warning: freshclam update failed (including optional mirrors). Continuing startup with available signatures."
+  fi
 fi
 
 # Start clamd in the foreground

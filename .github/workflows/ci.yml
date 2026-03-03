@@ -5,10 +5,16 @@ on:
     branches: [ main ]
     paths:
       - "src/**"
+      - "Dockerfile"
+      - "docker-compose.yml"
+      - "scripts/start.sh"
   pull_request:
     branches: [ main ]
     paths:
       - "src/**"
+      - "Dockerfile"
+      - "docker-compose.yml"
+      - "scripts/start.sh"
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}

@@ -35,7 +35,7 @@ RUN apt-get update \
  && apt-get upgrade -y \
  && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
     clamav clamav-daemon clamav-freshclam ca-certificates tini netcat-openbsd \
- && apt-get install --reinstall -y ca-certificates \
+ && apt-get install --reinstall -y --no-install-recommends ca-certificates \
  && update-ca-certificates --fresh \
  && apt-get autoremove -y \
  && rm -rf /var/lib/apt/lists/*

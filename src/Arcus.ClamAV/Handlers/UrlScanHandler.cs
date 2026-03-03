@@ -65,7 +65,8 @@ public class UrlScanHandler
         var jobId = _jobService.CreateJob(fileName, 0);
         _jobService.UpdateJobStatus(jobId, "downloading");
 
-        var tempPath = Path.Combine(Path.GetTempPath(), $"clamav_{jobId}_{Guid.NewGuid():N}_{fileName}");
+        var tempFileName = $"clamav_{jobId}_{Guid.NewGuid():N}_{fileName}";
+        var tempPath = Path.Join(Path.GetTempPath(), tempFileName);
         var maxFileSizeBytes = (long)_maxFileSizeMb * 1024 * 1024;
 
         // Enqueue for background processing

@@ -54,7 +54,8 @@ public class FileScanHandler(
         var jobId = jobService.CreateJob(file.FileName, file.Length);
 
         // Save to temp file
-        var tempPath = Path.Combine(Path.GetTempPath(), $"clamav_{jobId}_{Path.GetFileName(file.FileName)}");
+        var fileName = Path.GetFileName(file.FileName);
+        var tempPath = Path.Join(Path.GetTempPath(), $"clamav_{jobId}_{fileName}");
 
         try
         {
