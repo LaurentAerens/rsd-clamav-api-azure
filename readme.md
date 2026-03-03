@@ -11,7 +11,7 @@ It’s designed for local development, testing, and service integration — all 
 
 - 🧩 **All-in-one container** – ClamAV + REST API + Swagger.
 - 🔐 **Azure AD Authentication** – Secured with OAuth 2.0 client credentials flow.
-- 🔄 **Automatic virus database updates** at start-up.
+- 🔄 **Automatic virus database updates** at start-up (background by default when local signatures already exist).
 - 🛡️ **Extended community signatures (best-effort)** – `sanesecurity/rogue.hdb` is configured; if the community mirror is temporarily unavailable, startup continues with available ClamAV signatures.
 - 🧠 **Swagger UI** for easy manual testing (`/swagger`) with OAuth2 support - **disabled by default in Docker** (enabled for local development).
 - 💬 **Endpoints** for scanning, health checks, and ClamAV version info.
@@ -732,7 +732,13 @@ The deployment uses **Azure Files** to persist the ClamAV virus database (~300MB
 - **Volume Mount**: `/var/lib/clamav` mapped to Azure Files share
 - **Fast Startup**: Database persists across restarts (no re-download)
 - **Shared Access**: All replicas share the same database
-- **Auto-Update**: Database updates on container start if needed
+- **Auto-Update**: Container starts with existing signatures and runs updates in parallel by default
+
+Startup behavior can be tuned with environment variables:
+
+- `FRESHCLAM_BACKGROUND_UPDATE` (default: `true`) – Run `freshclam` in background when local DB exists
+- `FRESHCLAM_BLOCKING_ON_EMPTY_DB` (default: `true`) – Block startup only when no local DB files are found
+- `UPDATE_CA_CERTS_ON_START` (default: `false`) – Skip CA bundle refresh on each boot (already done at image build)
 
 ### 🔁 CI/CD with Azure Pipelines
 

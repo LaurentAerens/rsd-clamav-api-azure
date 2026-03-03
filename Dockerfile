@@ -27,6 +27,9 @@ CLAMD_HOST=127.0.0.1 \
 CLAMD_PORT=3310 \
 MAX_FILE_SIZE_MB=200 \
 FRESHCLAM_DELAY_SECS=0 \
+FRESHCLAM_BACKGROUND_UPDATE=true \
+FRESHCLAM_BLOCKING_ON_EMPTY_DB=true \
+UPDATE_CA_CERTS_ON_START=false \
 Swagger__Enabled=${ENABLE_SWAGGER}
 
 # Install ClamAV packages
@@ -40,6 +43,10 @@ RUN apk update \
        shadow \
        tini \
     && update-ca-certificates
+
+# Preload virus databases at build time to speed up first container start.
+# Ignore transient network failures; runtime startup logic still handles updates.
+RUN freshclam --stdout --verbose || true
 
 # Create app user and configure permissions
 RUN mkdir -p /var/log/clamav /app \
