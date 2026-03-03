@@ -1,0 +1,7 @@
+{
+  "message": "hello from load test",
+  "metadata": {
+    "source": "baseline",
+    "priority": 1
+  }
+}

@@ -1,0 +1,17 @@
+{
+  "documents": [
+    {
+      "id": "a",
+      "type": "text",
+      "payload": "safe content one"
+    },
+    {
+      "id": "b",
+      "type": "base64",
+      "payload": "WDVPIVAlQEFQWzRcUFpYNTQoUF4pN0NDKTd9JEVJQ0FSLVNUQU5EQVJELUFOVElWSVJVUy1URVNULUZJTEUhJEgrSCo="
+    }
+  ],
+  "metadata": {
+    "suite": "mixed-infected"
+  }
+}

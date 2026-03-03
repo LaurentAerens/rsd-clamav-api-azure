@@ -1,0 +1,31 @@
+{
+  "workflow": {
+    "id": "wf-42",
+    "stages": [
+      {
+        "name": "ingest",
+        "attributes": {
+          "attempt": 1,
+          "region": "westeurope"
+        }
+      },
+      {
+        "name": "enrich",
+        "attributes": {
+          "traceId": "7b6f730b-1f4f-4e48-aadf-83f9f4bb85ea",
+          "flags": ["safe", "json", "test"]
+        }
+      }
+    ]
+  },
+  "documents": [
+    {
+      "name": "doc-a",
+      "content": "VGhpcyBpcyBhIHNhZmUgYmFzZTY0IGNvbnRlbnQ="
+    },
+    {
+      "name": "doc-b",
+      "content": "QW5vdGhlciBzYWZlIGNvbnRlbnQgdG8gc2Nhbi4="
+    }
+  ]
+}

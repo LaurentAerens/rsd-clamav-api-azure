@@ -1,0 +1,32 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentParameters.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "environmentName": {
+      "value": "dev"
+    },
+    "location": {
+      "value": "westeurope"
+    },
+    "applicationName": {
+      "value": "cav"
+    },
+    "loadTestingName": {
+      "value": ""
+    },
+    "loadTestDescription": {
+      "value": "Load testing resource for ClamAV JSON endpoint performance experiments."
+    },
+    "enableSystemAssignedIdentity": {
+      "value": false
+    },
+    "tags": {
+      "value": {
+        "Environment": "dev",
+        "Application": "clamav-api",
+        "ManagedBy": "Bicep",
+        "Workload": "loadtesting"
+      }
+    }
+  }
+}

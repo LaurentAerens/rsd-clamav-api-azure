@@ -1,0 +1,24 @@
+{
+  "documents": [
+    {
+      "id": "a",
+      "type": "text",
+      "payload": "safe content one"
+    },
+    {
+      "id": "b",
+      "type": "base64",
+      "payload": "VGhpcyBpcyBhIHNhZmUgZG9jdW1lbnQ="
+    },
+    {
+      "id": "c",
+      "type": "nested",
+      "payload": {
+        "parts": ["alpha", "beta", "gamma"]
+      }
+    }
+  ],
+  "metadata": {
+    "suite": "mixed-clean"
+  }
+}
