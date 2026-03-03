@@ -31,25 +31,11 @@ Swagger__Enabled=${ENABLE_SWAGGER}
 
 
 # Install ClamAV packages
-RUN if command -v apt-get >/dev/null 2>&1; then \
-            apt-get update \
-            && apt-get upgrade -y \
-            && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
-                 clamav clamav-daemon clamav-freshclam ca-certificates tini netcat-openbsd \
-            && apt-get install --reinstall -y --no-install-recommends ca-certificates \
-            && update-ca-certificates --fresh \
-            && apt-get autoremove -y \
-            && rm -rf /var/lib/apt/lists/*; \
-        elif command -v tdnf >/dev/null 2>&1; then \
-            tdnf makecache \
-            && tdnf install -y clamav ca-certificates tini nmap-ncat \
-            && (command -v update-ca-certificates >/dev/null 2>&1 && update-ca-certificates --fresh || update-ca-trust extract) \
-            && ln -sf /usr/bin/ncat /usr/bin/nc \
-            && tdnf clean all; \
-        else \
-            echo "Unsupported base image: no known package manager found" >&2; \
-            exit 1; \
-        fi
+RUN tdnf makecache \
+    && tdnf install -y clamav ca-certificates tini nmap-ncat \
+    && update-ca-trust extract \
+    && ln -sf /usr/bin/ncat /usr/bin/nc \
+    && tdnf clean all
 
 # Create app user and configure permissions
 RUN mkdir -p /var/log/clamav /app && \
