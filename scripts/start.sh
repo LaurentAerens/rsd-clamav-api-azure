@@ -3,6 +3,9 @@ set -euo pipefail
 
 # Optional delay before first update (useful in constrained networks)
 : "${FRESHCLAM_DELAY_SECS:=0}"
+: "${FRESHCLAM_BACKGROUND_UPDATE:=true}"
+: "${FRESHCLAM_BLOCKING_ON_EMPTY_DB:=true}"
+: "${UPDATE_CA_CERTS_ON_START:=false}"
 
 run_as_clamav() {
   local cmd="$1"
@@ -22,17 +25,26 @@ run_as_clamav() {
   fi
 }
 
-# Update CA bundle (skip if not root, already done at build time)
-if [[ $EUID -eq 0 ]]; then
-  if command -v update-ca-certificates >/dev/null 2>&1; then
-    update-ca-certificates || true
-  elif command -v update-ca-trust >/dev/null 2>&1; then
-    update-ca-trust extract || true
+has_local_db() {
+  shopt -s nullglob
+  local db_files=(/var/lib/clamav/*.cvd /var/lib/clamav/*.cld /var/lib/clamav/*.cud)
+  shopt -u nullglob
+  (( ${#db_files[@]} > 0 ))
+}
+
+# Update CA bundle only when explicitly requested (already done at build time)
+if [[ "${UPDATE_CA_CERTS_ON_START,,}" == "true" ]]; then
+  if [[ $EUID -eq 0 ]]; then
+    if command -v update-ca-certificates >/dev/null 2>&1; then
+      update-ca-certificates || true
+    elif command -v update-ca-trust >/dev/null 2>&1; then
+      update-ca-trust extract || true
+    else
+      echo "[start.sh] No CA update command found, skipping"
+    fi
   else
-    echo "[start.sh] No CA update command found, skipping"
+    echo "[start.sh] Running as non-root, skipping CA certificate update"
   fi
-else
-  echo "[start.sh] Running as non-root, skipping CA certificate update"
 fi
 
 # Ensure required directories exist (may fail if not root, that's ok)
@@ -40,7 +52,7 @@ mkdir -p /var/lib/clamav /var/log/clamav 2>/dev/null || true
 
 # Try to fix permissions if root, skip otherwise
 if [[ $EUID -eq 0 ]]; then
-  chown -R clamav:clamav /var/lib/clamav /var/log/clamav
+  chown clamav:clamav /var/lib/clamav /var/log/clamav 2>/dev/null || true
   chmod 755 /var/lib/clamav /var/log/clamav
 fi
 
@@ -50,10 +62,26 @@ if [[ "${FRESHCLAM_DELAY_SECS}" -gt 0 ]]; then
   sleep "${FRESHCLAM_DELAY_SECS}"
 fi
 
-# Run one foreground update to ensure databases exist
-echo "[start.sh] Running initial freshclam update..."
-if ! run_as_clamav '/usr/bin/freshclam --stdout --verbose'; then
-  echo "[start.sh] Warning: freshclam update failed (including optional mirrors). Continuing startup with available signatures."
+# Ensure signatures are present, but avoid blocking startup unnecessarily.
+if has_local_db; then
+  echo "[start.sh] Found existing ClamAV databases; skipping blocking freshclam."
+  if [[ "${FRESHCLAM_BACKGROUND_UPDATE,,}" == "true" ]]; then
+    echo "[start.sh] Starting background freshclam update..."
+    (
+      if ! run_as_clamav '/usr/bin/freshclam --stdout --verbose'; then
+        echo "[start.sh] Warning: background freshclam update failed. Continuing with existing signatures."
+      fi
+    ) &
+  fi
+else
+  if [[ "${FRESHCLAM_BLOCKING_ON_EMPTY_DB,,}" == "true" ]]; then
+    echo "[start.sh] No local ClamAV databases found; running blocking freshclam update..."
+    if ! run_as_clamav '/usr/bin/freshclam --stdout --verbose'; then
+      echo "[start.sh] Warning: freshclam update failed on empty database state; clamd may fail to start."
+    fi
+  else
+    echo "[start.sh] No local ClamAV databases found; blocking update disabled."
+  fi
 fi
 
 # Start clamd in the foreground
