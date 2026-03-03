@@ -34,7 +34,7 @@ Swagger__Enabled=${ENABLE_SWAGGER}
 RUN apt-get update \
  && apt-get upgrade -y \
  && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
-    clamav clamav-daemon clamav-freshclam ca-certificates curl tini netcat-openbsd sudo \
+    clamav clamav-daemon clamav-freshclam ca-certificates tini netcat-openbsd \
  && apt-get install --reinstall -y ca-certificates \
  && update-ca-certificates --fresh \
  && apt-get autoremove -y \
@@ -46,9 +46,7 @@ RUN mkdir -p /var/log/clamav /app && \
     useradd -m -u 1001 appuser && \
     chown -R appuser:appuser /app && \
     usermod -aG clamav appuser && \
-    chmod -R g+w /var/log/clamav /var/lib/clamav 2>/dev/null || true && \
-    echo 'appuser ALL=(clamav) NOPASSWD: /usr/sbin/clamd, /usr/bin/freshclam' >> /etc/sudoers.d/clamav && \
-    chmod 0440 /etc/sudoers.d/clamav
+    chmod -R g+w /var/log/clamav /var/lib/clamav 2>/dev/null || true
 
 # Copy published API
 WORKDIR /app
@@ -76,6 +74,6 @@ EXPOSE 8080
 
 # Healthcheck: ensure clamd is up and the API responds
 HEALTHCHECK --interval=30s --timeout=5s --start-period=60s --retries=5 \
-CMD bash -lc 'echo PING | nc -w 2 127.0.0.1 3310 >/dev/null 2>&1 && curl -sf http://127.0.0.1:8080/healthz >/dev/null'
+CMD bash -lc 'echo PING | nc -w 2 127.0.0.1 3310 >/dev/null 2>&1 && printf "GET /healthz HTTP/1.1\r\nHost: 127.0.0.1\r\nConnection: close\r\n\r\n" | nc -w 2 127.0.0.1 8080 | grep -q "200"'
 ENTRYPOINT ["/usr/bin/tini", "--"]
 CMD ["/start.sh"]

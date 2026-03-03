@@ -29,17 +29,17 @@ fi
 # Run one foreground update to ensure databases exist
 echo "[start.sh] Running initial freshclam update..."
 if [[ $EUID -eq 0 ]]; then
-  su -s /bin/sh -c 'freshclam --stdout --verbose' clamav || true
+  su -s /bin/sh -c '/usr/bin/freshclam --stdout --verbose' clamav || true
 else
-  freshclam --stdout --verbose || true
+  /usr/bin/freshclam --stdout --verbose || true
 fi
 
 # Start clamd in the foreground
 echo "[start.sh] Starting clamd..."
 if [[ $EUID -eq 0 ]]; then
-  su -s /bin/sh -c 'clamd --foreground=true --config-file=/etc/clamav/clamd.conf' clamav &
+  su -s /bin/sh -c '/usr/sbin/clamd --foreground=true --config-file=/etc/clamav/clamd.conf' clamav &
 else
-  clamd --foreground=true --config-file=/etc/clamav/clamd.conf &
+  /usr/sbin/clamd --foreground=true --config-file=/etc/clamav/clamd.conf &
 fi
 CLAMD_PID=$!
 
