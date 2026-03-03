@@ -17,7 +17,7 @@ RUN dotnet publish Arcus.ClamAV/Arcus.ClamAV.csproj -c Release -p:CI=true -o /ap
 # =========================
 # Final stage: ASP.NET runtime + ClamAV
 # =========================
-FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS final
+FROM mcr.microsoft.com/dotnet/aspnet:10.0-noble AS final
 
 # Build arg for Swagger configuration (default: disabled)
 ARG ENABLE_SWAGGER=false
