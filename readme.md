@@ -1,6 +1,6 @@
 # 🛡️ Arcus ClamAV API Container
 
-A self-contained Dockerised antivirus scanning service built on **ClamAV** with a lightweight **.NET 8 HTTP API** and **Swagger UI**.
+A self-contained Dockerised antivirus scanning service built on **ClamAV** with a lightweight **.NET 10 HTTP API** and **Swagger UI**.
 
 This container runs the ClamAV engine and exposes a simple REST API for uploading and scanning files.  
 It’s designed for local development, testing, and service integration — all without needing to install ClamAV manually.
@@ -17,7 +17,7 @@ It’s designed for local development, testing, and service integration — all 
 - 💬 **Endpoints** for scanning, health checks, and ClamAV version info.
 - ⚡ **Async scanning support** – Upload large files and poll for results (ideal for files >10MB).
 - 🌐 **URL scanning** – Download and scan files from URLs with Base64 support.
-- � **JSON payload scanning** – Automatically detects and scans base64-encoded content within JSON (perfect for Azure Logic Apps & Functions).
+- 📦 **JSON payload scanning** – Automatically detects and scans base64-encoded content within JSON (perfect for Azure Logic Apps & Functions).
 - 🎯 **Performance optimized** – Tuned ClamAV settings + 4 concurrent workers for parallel processing.
 - 💾 **Persistent database volume** so virus definitions are reused between restarts.
 - 🔒 **Stateless HTTP interface** – ideal for CI pipelines or microservices.
@@ -73,7 +73,7 @@ flowchart TB
     %% ─────────────────────────────
     subgraph BACKGROUND["Background Processing"]
         Channel["Bounded Channel<br/>(queue)"]
-        BGService["BackgroundScanService"]
+        BGService["QueuedHostedService"]
     end
 
     %% ─────────────────────────────
@@ -195,17 +195,19 @@ flowchart TB
 │   ├── clamd.conf                      # ClamAV daemon configuration
 │   └── freshclam.conf                  # Freshclam configuration
 └── src/
-    └── Arcus.ClamAV/               # .NET 8 API project
+    └── Arcus.ClamAV/               # .NET 10 API project
         ├── Program.cs                  # Application entry point & DI configuration
         ├── Endpoints/                  # Endpoint route definitions
         │   ├── HealthEndpoints.cs      # Health check & version endpoints
         │   └── ScanEndpoints.cs        # All scan-related endpoints
         ├── Handlers/                   # Business logic handlers
         │   ├── FileScanHandler.cs      # Handles file upload scans
+        │   ├── JsonScanHandler.cs      # Handles JSON payload scans
         │   └── UrlScanHandler.cs       # Handles URL download scans
         ├── Services/                   # Background & domain services
         │   ├── SyncScanService.cs          # Unified scan logic for handlers
-        │   ├── BackgroundScanService.cs    # Background job processor
+        │   ├── QueuedHostedService.cs      # Background job processor
+        │   ├── ScanProcessingService.cs    # Shared async processing logic
         │   ├── ScanJobService.cs           # Job tracking & management
         │   └── ClamAvInfoService.cs        # ClamAV version info
         └── Models/                     # Data models
@@ -242,7 +244,7 @@ This will:
 | Method | Endpoint | Description |
 |:-------|:----------|:-------------|
 | `GET` | `/healthz` | Health check endpoint |
-| `GET` | `/version` | Returns ClamAV engine & database version |
+| `GET` | `/version` | Returns ClamAV version information |
 | `POST` | `/scan` | Upload a file to scan for viruses (synchronous - waits for results) |
 | `POST` | `/scan/async` | Upload a file for async scanning (returns job ID immediately) |
 | `POST` | `/scan/async/url` | Download a file from URL and scan it asynchronously (with size validation) |
@@ -256,16 +258,17 @@ This will:
 
 ### 🧪 Via Swagger UI
 
-**Note:** Swagger UI is **disabled by default** in the Docker container for security. It's enabled automatically when running in Development mode (local testing).
+**Note:** Swagger UI is **disabled by default** in the Docker image (`ENABLE_SWAGGER=false`).
 
-To enable Swagger in Docker, set the environment variable:
+In this repository, `docker-compose.yml` builds with `ENABLE_SWAGGER=true`, so Swagger is available when you run:
 ```bash
-docker run -e Swagger__Enabled=true -p 8080:8080 clamav-api
+docker compose up -d --build
 ```
 
-Or use the pre-built Swagger-enabled image:
+To run with Swagger explicitly via `docker run`, build with the arg and run the image:
 ```bash
-docker pull your-registry/clamav-api:v1.0.0-swagger
+docker build --build-arg ENABLE_SWAGGER=true -t clamav-api:swagger .
+docker run --rm -p 8080:8080 clamav-api:swagger
 ```
 
 Once enabled, open **[http://localhost:8080/swagger](http://localhost:8080/swagger)** in your browser.  
@@ -343,7 +346,7 @@ curl http://localhost:8080/scan/async/def-456
 💡 *For large files (>10MB), use the async endpoints for better performance.*
 
 ---
-� JSON Payload Scanning (Azure Integration)
+## 📦 JSON Payload Scanning (Azure Integration)
 
 The `/scan/json` endpoint is designed for Azure Logic Apps, Functions, and Power Automate integrations where file content is often embedded as base64 within JSON messages. The endpoint scans the **entire JSON body** for malware.
 
@@ -487,7 +490,7 @@ The API will find and scan both `attachments[0].data` and `attachments[1].data`,
 
 ## 🧩 ClamAV Version Endpoint
 
-To check the currently loaded ClamAV engine and database version:
+To check the currently loaded ClamAV version information:
 
 ```bash
 curl http://localhost:8080/version
@@ -496,10 +499,9 @@ curl http://localhost:8080/version
 Example:
 ```json
 {
-  "engine": "0.103.10",
-  "database": "27806",
-  "databaseDate": "Wed Oct 28 10:00:00 2025"
+  "clamAvVersion": "ClamAV <engine>/<database-version>/<database-date>"
 }
+```
 ---
 
 ## 💾 Persistent Virus Database
@@ -530,6 +532,10 @@ Environment variables can be overridden in `docker-compose.yml`:
 | `Swagger__Enabled` | `false` | Enable Swagger UI and OpenAPI documentation |
 | `Base64Detection__Enabled` | `true` | Enable automatic Base64 file content detection |
 | `Base64Detection__PeekSizeBytes` | `4096` | Bytes to examine for Base64 detection |
+| `FRESHCLAM_BACKGROUND_UPDATE` | `true` | Run `freshclam` in background when local DB files already exist |
+| `FRESHCLAM_BLOCKING_ON_EMPTY_DB` | `true` | Run blocking `freshclam` only when no local DB files are found |
+| `UPDATE_CA_CERTS_ON_START` | `false` | Refresh CA certificates on container start (normally skipped; done at image build) |
+| `FRESHCLAM_DELAY_SECS` | `0` | Optional delay before the initial freshclam update |
 
 ---
 
