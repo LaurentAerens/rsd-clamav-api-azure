@@ -4,9 +4,33 @@ set -euo pipefail
 # Optional delay before first update (useful in constrained networks)
 : "${FRESHCLAM_DELAY_SECS:=0}"
 
+run_as_clamav() {
+  local cmd="$1"
+
+  if [[ $EUID -ne 0 ]]; then
+    /bin/sh -c "$cmd"
+    return
+  fi
+
+  if command -v su >/dev/null 2>&1; then
+    su -s /bin/sh -c "$cmd" clamav
+  elif command -v runuser >/dev/null 2>&1; then
+    runuser -u clamav -- /bin/sh -c "$cmd"
+  else
+    echo "[start.sh] Warning: no 'su' or 'runuser' found; running command as root"
+    /bin/sh -c "$cmd"
+  fi
+}
+
 # Update CA bundle (skip if not root, already done at build time)
 if [[ $EUID -eq 0 ]]; then
-  update-ca-certificates || true
+  if command -v update-ca-certificates >/dev/null 2>&1; then
+    update-ca-certificates || true
+  elif command -v update-ca-trust >/dev/null 2>&1; then
+    update-ca-trust extract || true
+  else
+    echo "[start.sh] No CA update command found, skipping"
+  fi
 else
   echo "[start.sh] Running as non-root, skipping CA certificate update"
 fi
@@ -28,23 +52,13 @@ fi
 
 # Run one foreground update to ensure databases exist
 echo "[start.sh] Running initial freshclam update..."
-if [[ $EUID -eq 0 ]]; then
-  if ! su -s /bin/sh -c '/usr/bin/freshclam --stdout --verbose' clamav; then
-    echo "[start.sh] Warning: freshclam update failed (including optional mirrors). Continuing startup with available signatures."
-  fi
-else
-  if ! /usr/bin/freshclam --stdout --verbose; then
-    echo "[start.sh] Warning: freshclam update failed (including optional mirrors). Continuing startup with available signatures."
-  fi
+if ! run_as_clamav '/usr/bin/freshclam --stdout --verbose'; then
+  echo "[start.sh] Warning: freshclam update failed (including optional mirrors). Continuing startup with available signatures."
 fi
 
 # Start clamd in the foreground
 echo "[start.sh] Starting clamd..."
-if [[ $EUID -eq 0 ]]; then
-  su -s /bin/sh -c '/usr/sbin/clamd --foreground=true --config-file=/etc/clamav/clamd.conf' clamav &
-else
-  /usr/sbin/clamd --foreground=true --config-file=/etc/clamav/clamd.conf &
-fi
+run_as_clamav '/usr/sbin/clamd --foreground=true --config-file=/etc/clamav/clamd.conf' &
 CLAMD_PID=$!
 
 # Wait for clamd TCP socket to become ready
