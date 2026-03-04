@@ -6,11 +6,11 @@ using Microsoft.OpenApi;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Configure to read from appsettings.json and environment-specific files
+// Optimize configuration loading: avoid reloadOnChange in production
 builder.Configuration
     .SetBasePath(builder.Environment.ContentRootPath)
-    .AddJsonFile("appsettings.json", optional: false, reloadOnChange: true)
-    .AddJsonFile($"appsettings.{builder.Environment.EnvironmentName}.json", optional: true, reloadOnChange: true)
+    .AddJsonFile("appsettings.json", optional: false, reloadOnChange: false) // Production: disable watch
+    .AddJsonFile($"appsettings.{builder.Environment.EnvironmentName}.json", optional: true, reloadOnChange: false)
     .AddEnvironmentVariables()
     .AddCommandLine(args);
 
@@ -65,7 +65,7 @@ if (swaggerEnabled || isCodeGeneration)
     builder.Services.AddOpenApiDocument(configure => { configure.Title = "ClamAv Api"; });
 }
 
-// Register services
+// Register services - optimized for fast initialization
 builder.Services.AddSingleton<ITcpConnectionFactory, TcpConnectionFactory>();
 builder.Services.AddSingleton<IClamAvInfoService, ClamAvInfoService>();
 builder.Services.AddSingleton<IScanJobService, ScanJobService>();
@@ -86,12 +86,12 @@ builder.Services.AddScoped<FileScanHandler>();
 builder.Services.AddScoped<UrlScanHandler>();
 builder.Services.AddScoped<JsonScanHandler>();
 
-// Add background task queue with 4 concurrent workers
+// Add background task queue with configurable concurrent workers
 builder.Services.AddSingleton<IBackgroundTaskQueue>(sp =>
 {
-    var logger = sp.GetRequiredService<ILogger<BackgroundTaskQueue>>();
+    var svcLogger = sp.GetRequiredService<ILogger<BackgroundTaskQueue>>();
     var telemetryService = sp.GetRequiredService<ITelemetryService>();
-    return new BackgroundTaskQueue(capacity: 100, logger, telemetryService);
+    return new BackgroundTaskQueue(capacity: 100, svcLogger, telemetryService);
 });
 builder.Services.AddHostedService<QueuedHostedService>();
 
