@@ -15,7 +15,7 @@ public static class HealthEndpoints
             try
             {
                 // This will throw if clamd is not responding
-                var version = await clam.GetVersionAsync();
+                await clam.GetVersionAsync();
                 return Results.Ok(new HealthResponse { Status = "ok" });
             }
             catch (SocketException)
