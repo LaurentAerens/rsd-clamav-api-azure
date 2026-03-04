@@ -243,7 +243,7 @@ This will:
 
 | Method | Endpoint | Description |
 |:-------|:----------|:-------------|
-| `GET` | `/healthz` | Health check endpoint |
+| `GET` | `/healthz` | Health check – verifies both API and ClamAV daemon are ready (returns `200` if both ready, `503` if ClamAV not responding) |
 | `GET` | `/version` | Returns ClamAV version information |
 | `POST` | `/scan` | Upload a file to scan for viruses (synchronous - waits for results) |
 | `POST` | `/scan/async` | Upload a file for async scanning (returns job ID immediately) |
@@ -311,6 +311,19 @@ curl -X POST http://localhost:8080/scan/async -F "file=@large-file.zip"
 # Check status (poll until complete)
 curl http://localhost:8080/scan/async/abc-123
 ```
+
+#### 🏥 Health Check
+```bash
+# Check if API and ClamAV daemon are ready
+curl http://localhost:8080/healthz
+```
+
+Expected response (when ready):
+```json
+{ "status": "ok" }
+```
+
+Returns `503 Service Unavailable` if ClamAV daemon is not responding yet.
 
 #### 4️⃣ Scan file from URL (Asynchronous)
 ```bash

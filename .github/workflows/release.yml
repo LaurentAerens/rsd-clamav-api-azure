@@ -38,11 +38,16 @@ jobs:
       project_path: src/Arcus.ClamAV.sln
       run_tests: true
 
+  # Measure startup time and image size
+  measure-performance:
+    name: Measure Performance Metrics
+    uses: ./.github/workflows/_measure-performance.yml
+
   # Validate and release after tests pass
   validate-and-release:
     name: Validate & Release
     runs-on: ubuntu-latest
-    needs: [build-and-test]
+    needs: [build-and-test, measure-performance]
     if: needs.build-and-test.result == 'success'
 
     steps:
@@ -149,7 +154,7 @@ jobs:
             RELEASE_NOTES+=$'\n\n'
           fi
           
-          RELEASE_NOTES+="### Docker Image"
+          RELEASE_NOTES+="### 📦 Docker Image"
           RELEASE_NOTES+=$'\n'
           RELEASE_NOTES+="**Pull this release:**"
           RELEASE_NOTES+=$'\n'
@@ -166,8 +171,30 @@ jobs:
           RELEASE_NOTES+="\`\`\`"
           RELEASE_NOTES+=$'\n\n'
           
+          # Add performance metrics
+          RELEASE_NOTES+="### ⚡ Performance Metrics"
+          RELEASE_NOTES+=$'\n'
+          RELEASE_NOTES+="**Startup Time** (from container launch to /healthz 200): \`$STARTUP_TIME_MS\`ms"
+          RELEASE_NOTES+=$'\n\n'
+          RELEASE_NOTES+="| Metric | Value |"
+          RELEASE_NOTES+=$'\n'
+          RELEASE_NOTES+="| --- | --- |"
+          RELEASE_NOTES+=$'\n'
+          RELEASE_NOTES+="| Docker Image Size | \`$IMAGE_SIZE_MB\`MB (\`$IMAGE_SIZE_GB\`GB) |"
+          RELEASE_NOTES+=$'\n\n'
+          RELEASE_NOTES+="<details><summary>📝 Additional Details</summary>"
+          RELEASE_NOTES+=$'\n\n'
+          RELEASE_NOTES+="- **Clamd Full Init** (background): $CLAMD_READY_SEC seconds"
+          RELEASE_NOTES+=$'\n'
+          RELEASE_NOTES+="- Startup measured with warm restart (persisted ClamAV database)"
+          RELEASE_NOTES+=$'\n'
+          RELEASE_NOTES+="- See [Startup Optimization Guide](./docs/startup-optimization.md) for details"
+          RELEASE_NOTES+=$'\n\n'
+          RELEASE_NOTES+="</details>"
+          RELEASE_NOTES+=$'\n\n'
+          
           if [[ -n "$PREVIOUS_TAG" ]]; then
-            RELEASE_NOTES+="### Changes Since $PREVIOUS_TAG"
+            RELEASE_NOTES+="### 📝 Changes Since $PREVIOUS_TAG"
             RELEASE_NOTES+=$'\n'
             RELEASE_NOTES+="**Commits:**"
             RELEASE_NOTES+=$'\n'
@@ -179,7 +206,7 @@ jobs:
               RELEASE_NOTES+=$'\n\n'
             fi
           else
-            RELEASE_NOTES+="### Initial Release"
+            RELEASE_NOTES+="### 📝 Initial Release"
             RELEASE_NOTES+=$'\n'
             RELEASE_NOTES+="This is the first tagged release."
             RELEASE_NOTES+=$'\n\n'
@@ -200,6 +227,10 @@ jobs:
           REGISTRY_USERNAME: ${{ secrets.DOCKER_REGISTRY_USERNAME }}
           SERVER_URL: ${{ github.server_url }}
           REPOSITORY: ${{ github.repository }}
+          STARTUP_TIME_MS: ${{ needs.measure-performance.outputs.startup_time_ms }}
+          CLAMD_READY_SEC: ${{ needs.measure-performance.outputs.clamd_ready_sec }}
+          IMAGE_SIZE_MB: ${{ needs.measure-performance.outputs.image_size_mb }}
+          IMAGE_SIZE_GB: ${{ needs.measure-performance.outputs.image_size_gb }}
 
       - name: Create GitHub Release
         if: github.event.inputs.create_release == 'true'

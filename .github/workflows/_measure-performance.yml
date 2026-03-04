@@ -1,0 +1,105 @@
+name: Measure Performance (Reusable)
+
+on:
+  workflow_call:
+    outputs:
+      startup_time_ms:
+        description: "Startup time in milliseconds"
+        value: ${{ jobs.measure.outputs.startup_time_ms }}
+      clamd_ready_sec:
+        description: "Clamd readiness time in seconds"
+        value: ${{ jobs.measure.outputs.clamd_ready_sec }}
+      image_size_mb:
+        description: "Image size in MB"
+        value: ${{ jobs.measure.outputs.image_size_mb }}
+      image_size_gb:
+        description: "Image size in GB"
+        value: ${{ jobs.measure.outputs.image_size_gb }}
+
+jobs:
+  measure:
+    name: Measure Startup & Image Size
+    runs-on: ubuntu-latest
+    outputs:
+      startup_time_ms: ${{ steps.startup.outputs.STARTUP_TIME_MS }}
+      clamd_ready_sec: ${{ steps.clamd_ready.outputs.CLAMD_READY_TIME_SEC }}
+      image_size_mb: ${{ steps.image_size.outputs.IMAGE_SIZE_MB }}
+      image_size_gb: ${{ steps.image_size.outputs.IMAGE_SIZE_GB }}
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v6
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build Docker Image
+        run: |
+          docker build \
+            --progress=plain \
+            -t clamav-api:test \
+            --build-arg ENABLE_SWAGGER=false \
+            . 2>&1 | tee build.log
+
+      - name: Get Docker Image Size
+        id: image_size
+        run: |
+          IMAGE_SIZE=$(docker image inspect clamav-api:test --format='{{.Size}}')
+          IMAGE_SIZE_MB=$((IMAGE_SIZE / 1024 / 1024))
+          IMAGE_SIZE_GB=$(echo "scale=2; $IMAGE_SIZE / 1024 / 1024 / 1024" | bc)
+          
+          echo "IMAGE_SIZE_MB=$IMAGE_SIZE_MB" >> $GITHUB_OUTPUT
+          echo "IMAGE_SIZE_GB=$IMAGE_SIZE_GB" >> $GITHUB_OUTPUT
+          echo "📦 Docker image size: ${IMAGE_SIZE_MB}MB (${IMAGE_SIZE_GB}GB)"
+
+      - name: Create Test Docker Compose
+        run: |
+          cat > docker-compose.yml <<'EOF'
+          version: '3.8'
+          services:
+            clamav-api:
+              image: clamav-api:test
+              ports:
+                - "8080:8080"
+              environment:
+                - ASPNETCORE_URLS=http://0.0.0.0:8080
+                - Swagger__Enabled=false
+              volumes:
+                - clamav-db:/var/lib/clamav
+          volumes:
+            clamav-db:
+          EOF
+
+      - name: Measure Startup Time
+        id: startup
+        run: |
+          START_TIME=$(date +%s%3N)
+          docker compose up -d
+          
+          for i in {1..60}; do
+            if curl -s http://localhost:8080/healthz >/dev/null 2>&1; then
+              END_TIME=$(date +%s%3N)
+              STARTUP_TIME=$((END_TIME - START_TIME))
+              echo "✅ API ready in ${STARTUP_TIME}ms"
+              echo "STARTUP_TIME_MS=$STARTUP_TIME" >> $GITHUB_OUTPUT
+              break
+            fi
+            sleep 1
+          done
+
+      - name: Measure Clamd Readiness
+        id: clamd_ready
+        run: |
+          for i in {1..120}; do
+            if echo PING | nc -w 1 127.0.0.1 3310 2>/dev/null | grep -q PONG; then
+              echo "ℹ️ Clamd fully ready at ${i}s"
+              echo "CLAMD_READY_TIME_SEC=$i" >> $GITHUB_OUTPUT
+              break
+            fi
+            sleep 1
+          done
+
+      - name: Cleanup
+        if: always()
+        run: |
+          docker compose down -v || true
