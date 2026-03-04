@@ -7,7 +7,6 @@ using Microsoft.OpenApi;
 var builder = WebApplication.CreateBuilder(args);
 
 // Optimize configuration loading: avoid reloadOnChange in production
-var isDevelopment = builder.Environment.IsDevelopment();
 builder.Configuration
     .SetBasePath(builder.Environment.ContentRootPath)
     .AddJsonFile("appsettings.json", optional: false, reloadOnChange: false) // Production: disable watch

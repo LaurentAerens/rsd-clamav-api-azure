@@ -1,3 +1,5 @@
+using System.IO;
+using System.Net.Sockets;
 using Arcus.ClamAV.Models;
 using Arcus.ClamAV.Services;
 
@@ -16,7 +18,12 @@ public static class HealthEndpoints
                 var version = await clam.GetVersionAsync();
                 return Results.Ok(new HealthResponse { Status = "ok" });
             }
-            catch
+            catch (SocketException)
+            {
+                // ClamAV daemon not ready yet
+                return Results.StatusCode(503); // Service Unavailable
+            }
+            catch (IOException)
             {
                 // ClamAV daemon not ready yet
                 return Results.StatusCode(503); // Service Unavailable
