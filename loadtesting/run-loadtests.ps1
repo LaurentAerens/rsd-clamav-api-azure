@@ -249,17 +249,65 @@ function Install-LoadExtensionIfNeeded {
     }
 }
 
+function ConvertTo-YamlSingleQuoted {
+    param([string]$Value)
+    $safe = ($Value ?? '').Replace("'", "''")
+    return "'$safe'"
+}
+
+function New-LoadTestConfigFile {
+    param(
+        [string]$TestId,
+        [string]$DisplayName,
+        [string]$Description,
+        [string]$TestPlanPath,
+        [int]$EngineInstances,
+        [double]$AutostopErrorRate,
+        [int]$AutostopTimeWindowSeconds,
+        [string[]]$FailureCriteria
+    )
+
+    $lines = @(
+        'version: v0.1',
+        "testId: $(ConvertTo-YamlSingleQuoted -Value $TestId)",
+        "displayName: $(ConvertTo-YamlSingleQuoted -Value $DisplayName)",
+        "description: $(ConvertTo-YamlSingleQuoted -Value $Description)",
+        "testPlan: $(ConvertTo-YamlSingleQuoted -Value $TestPlanPath)",
+        "engineInstances: $EngineInstances",
+        'autoStop:',
+        "  errorPercentage: $AutostopErrorRate",
+        "  timeWindow: $AutostopTimeWindowSeconds",
+        'failureCriteria:'
+    )
+
+    foreach ($criterion in $FailureCriteria) {
+        $lines += "  - $(ConvertTo-YamlSingleQuoted -Value $criterion)"
+    }
+
+    $tempRoot = Join-Path ([System.IO.Path]::GetTempPath()) 'rsd-clamav-loadtesting'
+    New-Item -ItemType Directory -Path $tempRoot -Force | Out-Null
+
+    $configFile = Join-Path $tempRoot "$TestId.config.yaml"
+    Set-Content -Path $configFile -Value ($lines -join [Environment]::NewLine) -Encoding UTF8
+    return $configFile
+}
+
 function Initialize-LoadTest {
     param(
         [string]$ResourceGroup,
         [string]$LoadTestResource,
         [string]$TestId,
         [string]$DisplayName,
+        [string]$Description,
         [string]$TestPlanPath,
+        [int]$EngineInstances,
         [double]$AutostopErrorRate,
         [int]$AutostopTimeWindowSeconds,
-        [int]$AutostopEngineUsers
+        [int]$AutostopEngineUsers,
+        [string[]]$FailureCriteria
     )
+
+    $configFile = New-LoadTestConfigFile -TestId $TestId -DisplayName $DisplayName -Description $Description -TestPlanPath $TestPlanPath -EngineInstances $EngineInstances -AutostopErrorRate $AutostopErrorRate -AutostopTimeWindowSeconds $AutostopTimeWindowSeconds -FailureCriteria $FailureCriteria
 
     $showResult = Invoke-AzCli -Arguments @(
         'load', 'test', 'show',
@@ -271,14 +319,13 @@ function Initialize-LoadTest {
 
     if ($showResult.Success) {
         Write-Host "Test '$TestId' already exists." -ForegroundColor DarkGray
-        Write-Host "Updating existing test '$TestId' with latest test plan and metadata..." -ForegroundColor DarkGray
+        Write-Host "Updating existing test '$TestId' with latest config, criteria, engine count, and metadata..." -ForegroundColor DarkGray
         Invoke-AzCli -Arguments @(
             'load', 'test', 'update',
             '--resource-group', $ResourceGroup,
             '--load-test-resource', $LoadTestResource,
             '--test-id', $TestId,
-            '--display-name', $DisplayName,
-            '--test-plan', $TestPlanPath
+            '--load-test-config-file', $configFile
         ) | Out-Null
     }
     else {
@@ -292,9 +339,7 @@ function Initialize-LoadTest {
             '--resource-group', $ResourceGroup,
             '--load-test-resource', $LoadTestResource,
             '--test-id', $TestId,
-            '--display-name', $DisplayName,
-            '--test-plan', $TestPlanPath,
-            '--test-type', 'JMX'
+            '--load-test-config-file', $configFile
         ) | Out-Null
 
         Invoke-AzCli -Arguments @(
@@ -306,17 +351,7 @@ function Initialize-LoadTest {
         ) | Out-Null
     }
 
-    Write-Host "Applying test criteria for '$TestId' (autostop error rate ${AutostopErrorRate}% over ${AutostopTimeWindowSeconds}s)." -ForegroundColor DarkGray
-    Invoke-AzCli -Arguments @(
-        'load', 'test', 'update',
-        '--resource-group', $ResourceGroup,
-        '--load-test-resource', $LoadTestResource,
-        '--test-id', $TestId,
-        '--autostop', 'enable',
-        '--autostop-error-rate', $AutostopErrorRate,
-        '--autostop-time-window', $AutostopTimeWindowSeconds,
-        '--autostop-engine-users', $AutostopEngineUsers
-    ) | Out-Null
+    Write-Host "Applied Azure test criteria for '$TestId' via config file." -ForegroundColor DarkGray
 }
 
 function Publish-TestAssets {
@@ -422,12 +457,24 @@ function Start-LoadTestRun {
         $envList += "$($entry.Key)=$($entry.Value)"
     }
 
+    $targetRpmText = ''
+    if ($Environment.ContainsKey('TARGET_RPM')) {
+        $targetRpmText = [string]$Environment['TARGET_RPM']
+    }
+
+    $runDescription = "${TestId} host=$($Environment.HOST) rpm=$targetRpmText"
+    if ($runDescription.Length -gt 100) {
+        $runDescription = $runDescription.Substring(0, 100)
+    }
+
     $runCreateArgs = @(
         'load', 'test-run', 'create',
         '--resource-group', $ResourceGroup,
         '--load-test-resource', $LoadTestResource,
         '--test-id', $TestId,
         '--test-run-id', $runId,
+        '--display-name', "$TestId - $timestamp",
+        '--description', $runDescription,
         '--env'
     )
     $runCreateArgs += $envList
@@ -561,6 +608,7 @@ Write-Host "Resolved endpoint: $($endpoint.Protocol)://$($endpoint.Host)" -Foreg
 
 $targetHost = $endpoint.Host
 $protocol = $endpoint.Protocol
+$engineInstances = [int](Read-Value -Prompt 'Engine instances per test' -Default '3')
 $healthPath = '/healthz'
 $healthTimeoutSeconds = 300
 $healthPollIntervalSeconds = 5
@@ -574,7 +622,12 @@ if (-not $runBaseline -and -not $runCapacity) {
 }
 
 if ($runBaseline) {
-    Initialize-LoadTest -ResourceGroup $resourceGroup -LoadTestResource $loadTestResourceName -TestId 'json-baseline' -DisplayName 'JSON baseline' -TestPlanPath $baselineJmx -AutostopErrorRate 1 -AutostopTimeWindowSeconds 30 -AutostopEngineUsers 50
+    $baselineCriteria = @(
+        'percentage(error) > 1',
+        'avg(response_time_ms) > 15000',
+        'avg(requests_per_sec) < 2'
+    )
+    Initialize-LoadTest -ResourceGroup $resourceGroup -LoadTestResource $loadTestResourceName -TestId 'json-baseline' -DisplayName 'JSON baseline' -Description 'Baseline validation for /scan/json with mixed clean and expected-infected payloads.' -TestPlanPath $baselineJmx -EngineInstances $engineInstances -AutostopErrorRate 1 -AutostopTimeWindowSeconds 30 -AutostopEngineUsers 50 -FailureCriteria $baselineCriteria
     Publish-TestAssets -ResourceGroup $resourceGroup -LoadTestResource $loadTestResourceName -TestId 'json-baseline' -JmxPath $baselineJmx -DatasetPaths @($baselineCsv, $warmupCsv) -PayloadFolder $payloadRoot
 
     if (Read-YesNo -Prompt 'Start baseline run now?' -Default $true) {
@@ -583,12 +636,12 @@ if ($runBaseline) {
         $baselineEnv = @{
             HOST = $targetHost
             PROTOCOL = $protocol
-            WARMUP_THREADS = (Read-Value -Prompt 'Baseline WARMUP_THREADS' -Default '1')
+            WARMUP_THREADS = (Read-Value -Prompt 'Baseline warm-up clients (threads per engine)' -Default '5')
             WARMUP_LOOPS = (Read-Value -Prompt 'Baseline WARMUP_LOOPS' -Default '5')
-            BASELINE_THREADS = (Read-Value -Prompt 'BASELINE_THREADS' -Default '3')
+            BASELINE_THREADS = (Read-Value -Prompt 'Baseline concurrent clients (threads per engine)' -Default '30')
             BASELINE_RAMP_SECONDS = (Read-Value -Prompt 'BASELINE_RAMP_SECONDS' -Default '30')
-            BASELINE_LOOPS = (Read-Value -Prompt 'BASELINE_LOOPS' -Default '20')
-            TARGET_RPM = (Read-Value -Prompt 'Baseline TARGET_RPM (calls/min)' -Default '120')
+            BASELINE_LOOPS = (Read-Value -Prompt 'BASELINE_LOOPS' -Default '50')
+            TARGET_RPM = (Read-Value -Prompt 'Baseline TARGET_RPM (calls/min)' -Default '900')
             MAX_RESPONSE_MS = (Read-Value -Prompt 'Baseline MAX_RESPONSE_MS' -Default '15000')
         }
 
@@ -603,7 +656,11 @@ if ($runBaseline) {
 }
 
 if ($runCapacity) {
-    Initialize-LoadTest -ResourceGroup $resourceGroup -LoadTestResource $loadTestResourceName -TestId 'json-capacity' -DisplayName 'JSON capacity' -TestPlanPath $capacityJmx -AutostopErrorRate 5 -AutostopTimeWindowSeconds 60 -AutostopEngineUsers 1000
+    $capacityCriteria = @(
+        'percentage(error) > 5',
+        'avg(response_time_ms) > 20000'
+    )
+    Initialize-LoadTest -ResourceGroup $resourceGroup -LoadTestResource $loadTestResourceName -TestId 'json-capacity' -DisplayName 'JSON capacity' -Description 'Capacity ramp for /scan/json to identify first unstable throughput point.' -TestPlanPath $capacityJmx -EngineInstances $engineInstances -AutostopErrorRate 5 -AutostopTimeWindowSeconds 60 -AutostopEngineUsers 1000 -FailureCriteria $capacityCriteria
     Publish-TestAssets -ResourceGroup $resourceGroup -LoadTestResource $loadTestResourceName -TestId 'json-capacity' -JmxPath $capacityJmx -DatasetPaths @($capacityCsv, $warmupCsv) -PayloadFolder $payloadRoot
 
     if (Read-YesNo -Prompt 'Start capacity run now?' -Default $true) {
@@ -612,18 +669,18 @@ if ($runCapacity) {
         $capacityBaseEnv = @{
             HOST = $targetHost
             PROTOCOL = $protocol
-            WARMUP_THREADS = (Read-Value -Prompt 'Capacity WARMUP_THREADS' -Default '1')
+            WARMUP_THREADS = (Read-Value -Prompt 'Capacity warm-up clients (threads per engine)' -Default '10')
             WARMUP_LOOPS = (Read-Value -Prompt 'Capacity WARMUP_LOOPS' -Default '8')
-            CAPACITY_THREADS = (Read-Value -Prompt 'CAPACITY_THREADS' -Default '10')
-            CAPACITY_RAMP_SECONDS = (Read-Value -Prompt 'CAPACITY_RAMP_SECONDS' -Default '60')
-            CAPACITY_LOOPS = (Read-Value -Prompt 'CAPACITY_LOOPS' -Default '40')
+            CAPACITY_THREADS = (Read-Value -Prompt 'Capacity concurrent clients (threads per engine)' -Default '80')
+            CAPACITY_RAMP_SECONDS = (Read-Value -Prompt 'CAPACITY_RAMP_SECONDS' -Default '120')
+            CAPACITY_LOOPS = (Read-Value -Prompt 'CAPACITY_LOOPS' -Default '80')
             MAX_RESPONSE_MS = (Read-Value -Prompt 'Capacity MAX_RESPONSE_MS' -Default '20000')
         }
 
         if (Read-YesNo -Prompt 'Auto-ramp capacity until failure?' -Default $true) {
-            $startRpm = [int](Read-Value -Prompt 'Capacity start TARGET_RPM (calls/min)' -Default '120')
-            $stepRpm = [int](Read-Value -Prompt 'Capacity step TARGET_RPM (calls/min)' -Default '60')
-            $maxRpm = [int](Read-Value -Prompt 'Capacity max TARGET_RPM (calls/min)' -Default '1200')
+            $startRpm = [int](Read-Value -Prompt 'Capacity start TARGET_RPM (calls/min)' -Default '1200')
+            $stepRpm = [int](Read-Value -Prompt 'Capacity step TARGET_RPM (calls/min)' -Default '300')
+            $maxRpm = [int](Read-Value -Prompt 'Capacity max TARGET_RPM (calls/min)' -Default '6000')
 
             $maxStableRpm = 0
             $failureRunId = ''
@@ -662,7 +719,7 @@ if ($runCapacity) {
             foreach ($key in $capacityBaseEnv.Keys) {
                 $capacityEnv[$key] = $capacityBaseEnv[$key]
             }
-            $capacityEnv['TARGET_RPM'] = (Read-Value -Prompt 'Capacity TARGET_RPM (calls/min)' -Default '300')
+            $capacityEnv['TARGET_RPM'] = (Read-Value -Prompt 'Capacity TARGET_RPM (calls/min)' -Default '1800')
 
             $resolvedCapacityJmx = New-ResolvedJmxFile -TemplatePath $capacityJmx -Variables $capacityEnv -TargetFileName 'json-capacity.jmx'
             Upload-TestPlanFile -ResourceGroup $resourceGroup -LoadTestResource $loadTestResourceName -TestId 'json-capacity' -TestPlanPath $resolvedCapacityJmx

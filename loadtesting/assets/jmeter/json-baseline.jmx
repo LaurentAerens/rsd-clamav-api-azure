@@ -116,13 +116,26 @@
           <boolProp name="HTTPSampler.use_keepalive">true</boolProp>
         </HTTPSamplerProxy>
         <hashTree>
+          <JSR223PostProcessor guiclass="TestBeanGUI" testclass="JSR223PostProcessor" testname="Mark expected status as success" enabled="true">
+            <stringProp name="cacheKey">baseline-warmup-expected-status</stringProp>
+            <stringProp name="filename"></stringProp>
+            <stringProp name="parameters"></stringProp>
+            <stringProp name="scriptLanguage">groovy</stringProp>
+            <stringProp name="script">def expected = vars.get('expectedCode')?.trim()
+def actual = prev.getResponseCode()?.trim()
+if (expected &amp;&amp; actual == expected) {
+    prev.setSuccessful(true)
+    prev.setResponseMessage('Expected status: ' + actual)
+}</stringProp>
+          </JSR223PostProcessor>
+          <hashTree/>
           <ResponseAssertion guiclass="AssertionGui" testclass="ResponseAssertion" testname="Expected status" enabled="true">
             <collectionProp name="Asserion.test_strings">
               <stringProp name="respCode">${expectedCode}</stringProp>
             </collectionProp>
             <stringProp name="Assertion.custom_message"></stringProp>
             <stringProp name="Assertion.test_field">Assertion.response_code</stringProp>
-            <boolProp name="Assertion.assume_success">false</boolProp>
+            <boolProp name="Assertion.assume_success">true</boolProp>
             <intProp name="Assertion.test_type">8</intProp>
           </ResponseAssertion>
           <hashTree/>
@@ -187,13 +200,26 @@
           <boolProp name="HTTPSampler.use_keepalive">true</boolProp>
         </HTTPSamplerProxy>
         <hashTree>
+          <JSR223PostProcessor guiclass="TestBeanGUI" testclass="JSR223PostProcessor" testname="Mark expected status as success" enabled="true">
+            <stringProp name="cacheKey">baseline-measured-expected-status</stringProp>
+            <stringProp name="filename"></stringProp>
+            <stringProp name="parameters"></stringProp>
+            <stringProp name="scriptLanguage">groovy</stringProp>
+            <stringProp name="script">def expected = vars.get('expectedCode')?.trim()
+def actual = prev.getResponseCode()?.trim()
+if (expected &amp;&amp; actual == expected) {
+    prev.setSuccessful(true)
+    prev.setResponseMessage('Expected status: ' + actual)
+}</stringProp>
+          </JSR223PostProcessor>
+          <hashTree/>
           <ResponseAssertion guiclass="AssertionGui" testclass="ResponseAssertion" testname="Expected status" enabled="true">
             <collectionProp name="Asserion.test_strings">
               <stringProp name="respCode">${expectedCode}</stringProp>
             </collectionProp>
             <stringProp name="Assertion.custom_message"></stringProp>
             <stringProp name="Assertion.test_field">Assertion.response_code</stringProp>
-            <boolProp name="Assertion.assume_success">false</boolProp>
+            <boolProp name="Assertion.assume_success">true</boolProp>
             <intProp name="Assertion.test_type">8</intProp>
           </ResponseAssertion>
           <hashTree/>
