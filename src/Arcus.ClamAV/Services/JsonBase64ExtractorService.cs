@@ -9,17 +9,20 @@ namespace Arcus.ClamAV.Services;
 public partial class JsonBase64ExtractorService : IJsonBase64ExtractorService
 {
     private readonly ILogger<JsonBase64ExtractorService> _logger;
+    private readonly IPerformanceProfiler _profiler;
     private const int MinBase64Length = 20; // Minimum length to consider as potential base64 content
     private HashSet<string>? _base64Paths; // Tracks paths identified as base64
 
-    public JsonBase64ExtractorService(ILogger<JsonBase64ExtractorService> logger)
+    public JsonBase64ExtractorService(ILogger<JsonBase64ExtractorService> logger, IPerformanceProfiler? profiler = null)
     {
         _logger = logger;
+        _profiler = profiler ?? NoOpPerformanceProfiler.Instance;
     }
 
     /// <inheritdoc />
     public List<Base64Extract> ExtractBase64Properties(JsonElement jsonElement)
     {
+        using var _ = _profiler.Track("JsonBase64ExtractorService.ExtractBase64Properties");
         _base64Paths = new HashSet<string>();
         var extracts = new List<Base64Extract>();
         ExtractRecursive(jsonElement, "", extracts);
@@ -57,32 +60,39 @@ public partial class JsonBase64ExtractorService : IJsonBase64ExtractorService
 
             case JsonValueKind.String:
                 var stringValue = element.GetString();
-                if (!string.IsNullOrEmpty(stringValue) && IsLikelyBase64(stringValue))
+                using (_profiler.Track("JsonBase64ExtractorService.ProcessString"))
                 {
-                    try
+                    if (!string.IsNullOrEmpty(stringValue) && IsLikelyBase64(stringValue))
                     {
-                        // Remove whitespace and try to decode
-                        var cleaned = stringValue.Trim().Replace("\r", "").Replace("\n", "").Replace(" ", "");
-                        var decoded = Convert.FromBase64String(cleaned);
-
-                        // Only consider it if decoded to reasonable size (avoid false positives)
-                        if (decoded.Length >= 10)
+                        try
                         {
-                            _logger.LogInformation("Found base64 content at path '{Path}': {OriginalSize} bytes → {DecodedSize} bytes",
-                                currentPath, stringValue.Length, decoded.Length);
-
-                            extracts.Add(new Base64Extract
+                            // Remove whitespace and try to decode
+                            var cleaned = stringValue.Trim().Replace("\r", "").Replace("\n", "").Replace(" ", "");
+                            byte[] decoded;
+                            using (_profiler.Track("JsonBase64ExtractorService.DecodeBase64"))
                             {
-                                Path = currentPath,
-                                DecodedContent = decoded
-                            });
-                            _base64Paths?.Add(currentPath);
+                                decoded = Convert.FromBase64String(cleaned);
+                            }
+
+                            // Only consider it if decoded to reasonable size (avoid false positives)
+                            if (decoded.Length >= 10)
+                            {
+                                _logger.LogInformation("Found base64 content at path '{Path}': {OriginalSize} bytes → {DecodedSize} bytes",
+                                    currentPath, stringValue.Length, decoded.Length);
+
+                                extracts.Add(new Base64Extract
+                                {
+                                    Path = currentPath,
+                                    DecodedContent = decoded
+                                });
+                                _base64Paths?.Add(currentPath);
+                            }
                         }
-                    }
-                    catch (FormatException)
-                    {
-                        // Not valid base64, skip
-                        _logger.LogDebug("Property '{Path}' looked like base64 but failed to decode", currentPath);
+                        catch (FormatException)
+                        {
+                            // Not valid base64, skip
+                            _logger.LogDebug("Property '{Path}' looked like base64 but failed to decode", currentPath);
+                        }
                     }
                 }
                 break;

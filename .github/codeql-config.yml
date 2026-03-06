@@ -16,6 +16,10 @@ paths-ignore:
   - '**/*.Tests/**'
   - '**/TestResults/**'
   
+  # Exclude benchmarking projects (not deployed to production)
+  - 'src/Arcus.ClamAV.Benchmarks/**'
+  - '**/*.Benchmarks/**'
+  
   # Exclude build artifacts
   - '**/bin/**'
   - '**/obj/**'

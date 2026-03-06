@@ -70,6 +70,7 @@ builder.Services.AddSingleton<ITcpConnectionFactory, TcpConnectionFactory>();
 builder.Services.AddSingleton<IClamAvInfoService, ClamAvInfoService>();
 builder.Services.AddSingleton<IScanJobService, ScanJobService>();
 builder.Services.AddSingleton<IJsonBase64ExtractorService, JsonBase64ExtractorService>();
+builder.Services.AddSingleton<IPerformanceProfiler>(NoOpPerformanceProfiler.Instance);
 builder.Services.AddSingleton<IClamClientFactory, ClamClientFactory>();
 builder.Services.AddScoped<IClamAvScanService, ClamAvScanService>();
 builder.Services.AddScoped<ISyncScanService, SyncScanService>();

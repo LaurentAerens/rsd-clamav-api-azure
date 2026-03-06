@@ -81,6 +81,8 @@ jobs:
               --exclude='**/Generated/**' \
               --exclude='**/*.Tests/**' \
               --exclude='**/Arcus.ClamAV.Tests/**' \
+              --exclude='**/*.Benchmarks/**' \
+              --exclude='**/Arcus.ClamAV.Benchmarks/**' \
               --exclude='**/TestResults/**' \
               --exclude='**/bin/**' \
               --exclude='**/obj/**' \

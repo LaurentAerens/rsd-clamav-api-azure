@@ -8,8 +8,11 @@ namespace Arcus.ClamAV.Handlers;
 public class JsonScanHandler(
     IJsonBase64ExtractorService extractorService,
     ISyncScanService syncScanService,
-    ILogger<JsonScanHandler> logger)
+    ILogger<JsonScanHandler> logger,
+    IPerformanceProfiler? profiler = null)
 {
+    private readonly IPerformanceProfiler _profiler = profiler ?? NoOpPerformanceProfiler.Instance;
+
     public async Task<IResult> HandleAsync(JsonElement jsonPayload)
     {
         var startTime = DateTime.UtcNow;
@@ -24,19 +27,31 @@ public class JsonScanHandler(
         try
         {
             // 1. Extract base64 items and string values
-            var base64Items = extractorService.ExtractBase64Properties(jsonPayload);
-            var stringValues = ExtractStringValues(jsonPayload);
+            List<Base64Extract> base64Items;
+            List<(string Path, string Content)> stringValues;
+
+            using (_profiler.Track("JsonScanHandler.ExtractBase64"))
+            {
+                base64Items = extractorService.ExtractBase64Properties(jsonPayload);
+            }
+
+            using (_profiler.Track("JsonScanHandler.ExtractStrings"))
+            {
+                stringValues = ExtractStringValues(jsonPayload);
+            }
             result.Base64ItemsFound = base64Items.Count;
 
             logger.LogInformation("Found {Base64Count} base64 items and {StringCount} string values in JSON payload", 
                 base64Items.Count, stringValues.Count);
 
             // 2. Scan each base64-decoded item
-            foreach (var item in base64Items)
+            using (_profiler.Track("JsonScanHandler.ScanBase64Items"))
             {
-                using var memoryStream = new MemoryStream(item.DecodedContent);
-                var scanResult = await syncScanService.ScanStreamAsync(memoryStream, item.DecodedContent.Length);
-                result.ItemsScanned++;
+                foreach (var item in base64Items)
+                {
+                    using var memoryStream = new MemoryStream(item.DecodedContent);
+                    var scanResult = await syncScanService.ScanStreamAsync(memoryStream, item.DecodedContent.Length);
+                    result.ItemsScanned++;
 
                 var detail = new ScannedItemDetail
                 {
@@ -59,26 +74,29 @@ public class JsonScanHandler(
                     return Results.Json(result, statusCode: 406);
                 }
 
-                result.Details.Add(detail);
+                    result.Details.Add(detail);
+                }
             }
 
             // 3. Scan each plaintext string value (skip if already identified as base64)
-            foreach (var stringValue in stringValues)
+            using (_profiler.Track("JsonScanHandler.ScanPlaintextItems"))
             {
-                // Skip if this path was already identified as base64
-                if (extractorService.IsBase64Path(stringValue.Path))
+                foreach (var stringValue in stringValues)
                 {
-                    logger.LogDebug("Skipping plaintext scan for '{Path}' (already scanned as base64)", stringValue.Path);
-                    continue;
-                }
+                    // Skip if this path was already identified as base64
+                    if (extractorService.IsBase64Path(stringValue.Path))
+                    {
+                        logger.LogDebug("Skipping plaintext scan for '{Path}' (already scanned as base64)", stringValue.Path);
+                        continue;
+                    }
 
-                if (string.IsNullOrWhiteSpace(stringValue.Content))
-                    continue;
+                    if (string.IsNullOrWhiteSpace(stringValue.Content))
+                        continue;
 
-                var stringBytes = Encoding.UTF8.GetBytes(stringValue.Content);
-                using var stringStream = new MemoryStream(stringBytes);
-                var scanResult = await syncScanService.ScanStreamAsync(stringStream, stringBytes.Length);
-                result.ItemsScanned++;
+                    var stringBytes = Encoding.UTF8.GetBytes(stringValue.Content);
+                    using var stringStream = new MemoryStream(stringBytes);
+                    var scanResult = await syncScanService.ScanStreamAsync(stringStream, stringBytes.Length);
+                    result.ItemsScanned++;
 
                 var detail = new ScannedItemDetail
                 {
@@ -101,7 +119,8 @@ public class JsonScanHandler(
                     return Results.Json(result, statusCode: 406);
                 }
 
-                result.Details.Add(detail);
+                    result.Details.Add(detail);
+                }
             }
 
             result.ScanDurationMs = (DateTime.UtcNow - startTime).TotalMilliseconds;
