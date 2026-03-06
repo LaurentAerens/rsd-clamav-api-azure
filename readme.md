@@ -224,6 +224,19 @@ flowchart TB
 
 ---
 
+## 🧪 Tool branches
+
+A set of experimental tool are available in the `tool/*` branches of this repository. These branches are used for developing and testing auxiliary tools related to the ClamAV API, such as load testing scripts, performance profilers. These are tools that can help a developer or tester to work with the ClamAV API, but are not part of the core API functionality itself because there was limited time spend on there code quality and stability. They are intended for experimentation and may contain rough code, prototypes, or work-in-progress features.
+
+Current `tool/*` branches in this repository:
+
+- `tool/azure-load-test` — This uses a powershell script to create and run a azure load test resource targeting the ClamAV API scan/json endpoint. This is unfinished because my understanding of azure load testing is limited.
+ - `tool/dotnet-benchmark` — A benchmarkdotnet project to measure the performance of the scan/json endpoint with different payloads and configurations. This allows a deep dive into what function takes the most time. A very useful tool to find bottlenecks and verify the impact of optimizations. This is fully vibe coded so I won't be able to support it or guarantee code quality. So it remain on it's own branch.
+
+If you maintain other `tool/*` branches locally or remotely, follow the same naming convention. These branches are safe to keep around for experimentation but should not be merged into `main`.
+
+
+
 ## 🧱 Build and Run Locally
 
 From the project root, run:
