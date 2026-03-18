@@ -91,7 +91,7 @@ jobs:
         id: clamd_ready
         run: |
           for i in {1..120}; do
-            if echo PING | nc -w 1 127.0.0.1 3310 2>/dev/null | grep -q PONG; then
+            if docker compose exec -T clamav-api sh -c 'echo PING | nc -w 1 127.0.0.1 3310 2>/dev/null' 2>/dev/null | grep -q PONG; then
               echo "ℹ️ Clamd fully ready at ${i}s"
               echo "CLAMD_READY_TIME_SEC=$i" >> $GITHUB_OUTPUT
               break

@@ -187,8 +187,6 @@ jobs:
           RELEASE_NOTES+="- **Clamd Full Init** (background): $CLAMD_READY_SEC seconds"
           RELEASE_NOTES+=$'\n'
           RELEASE_NOTES+="- Startup measured with warm restart (persisted ClamAV database)"
-          RELEASE_NOTES+=$'\n'
-          RELEASE_NOTES+="- See [Startup Optimization Guide](./docs/startup-optimization.md) for details"
           RELEASE_NOTES+=$'\n\n'
           RELEASE_NOTES+="</details>"
           RELEASE_NOTES+=$'\n\n'
