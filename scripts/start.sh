@@ -56,6 +56,14 @@ if [[ $EUID -eq 0 ]]; then
   chmod 755 /var/lib/clamav /var/log/clamav
 fi
 
+# Fail fast with a clear message when the mounted database volume is not writable.
+if ! touch /var/lib/clamav/.write_test 2>/dev/null; then
+  echo "[start.sh] ERROR: Cannot write to /var/lib/clamav (running as UID $EUID)." >&2
+  echo "[start.sh] For Azure Container Apps + Azure Files, verify volume mount permissions." >&2
+  exit 1
+fi
+rm -f /var/lib/clamav/.write_test 2>/dev/null || true
+
 # Optional delay before initial DB update
 if [[ "${FRESHCLAM_DELAY_SECS}" -gt 0 ]]; then
   echo "[start.sh] Sleeping ${FRESHCLAM_DELAY_SECS}s before initial freshclam..."
