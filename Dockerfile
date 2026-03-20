@@ -17,7 +17,7 @@ RUN dotnet publish Arcus.ClamAV/Arcus.ClamAV.csproj -c Release -p:CI=true -o /ap
 # =========================
 # Final stage: ASP.NET runtime + ClamAV (Alpine)
 # =========================
-FROM mcr.microsoft.com/dotnet/aspnet:10.0-alpine AS final
+FROM mcr.microsoft.com/dotnet/aspnet:10.0-alpine3.23 AS final
 
 # Build arg for Swagger configuration (default: disabled)
 ARG ENABLE_SWAGGER=false
@@ -34,7 +34,9 @@ Swagger__Enabled=${ENABLE_SWAGGER}
 
 # Install ClamAV packages
 RUN apk update \
+    && apk upgrade --no-cache --available zlib \
     && apk add --no-cache \
+       'zlib>=1.3.2-r0' \
        bash \
        ca-certificates \
        clamav \
