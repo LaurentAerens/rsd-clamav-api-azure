@@ -50,11 +50,9 @@ RUN freshclam --stdout --verbose || true
 
 # Create app user and configure permissions
 RUN mkdir -p /var/log/clamav /app \
-    && chown -R clamav:clamav /var/log/clamav \
     && useradd -m -u 1001 appuser \
-    && chown -R appuser:appuser /app \
-    && usermod -aG clamav appuser \
-    && chmod -R g+w /var/log/clamav /var/lib/clamav 2>/dev/null || true
+    && chown -R appuser:appuser /app /var/log/clamav /var/lib/clamav \
+    && chmod 755 /var/log/clamav /var/lib/clamav
 
 # Copy published API
 WORKDIR /app
@@ -79,5 +77,6 @@ EXPOSE 8080
 # Healthcheck: ensure clamd is up and the API responds
 HEALTHCHECK --interval=30s --timeout=5s --start-period=60s --retries=5 \
 CMD bash -lc 'echo PING | nc -w 2 127.0.0.1 3310 >/dev/null 2>&1 && printf "GET /healthz HTTP/1.1\r\nHost: 127.0.0.1\r\nConnection: close\r\n\r\n" | nc -w 2 127.0.0.1 8080 | grep -q "200"'
+USER appuser
 ENTRYPOINT ["/sbin/tini", "--"]
 CMD ["/start.sh"]

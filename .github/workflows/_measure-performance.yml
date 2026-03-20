@@ -55,10 +55,19 @@ jobs:
       - name: Create Test Docker Compose
         run: |
           cat > docker-compose.yml <<'EOF'
-          version: '3.8'
           services:
+            clamav-volume-init:
+              image: alpine:3.22
+              command: ["sh", "-c", "chmod -R 0777 /var/lib/clamav || true"]
+              volumes:
+                - clamav-db:/var/lib/clamav
+
             clamav-api:
               image: clamav-api:test
+              depends_on:
+                clamav-volume-init:
+                  condition: service_completed_successfully
+              user: "1001:1001"
               ports:
                 - "8080:8080"
               environment:
