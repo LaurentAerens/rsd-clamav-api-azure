@@ -15,7 +15,7 @@
 		  <PrivateAssets>all</PrivateAssets>
 		  <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
 		</PackageReference>
-		<PackageReference Include="Swashbuckle.AspNetCore" Version="10.1.5" />
+		<PackageReference Include="Swashbuckle.AspNetCore" Version="10.1.7" />
 	</ItemGroup>
 	<Target Name="NSwag" BeforeTargets="AfterBuild" Condition="'$(CI)'!='true'">
 		<Exec ConsoleToMSBuild="true" ContinueOnError="true" Command="$(NSwagExe_Net100) run ../Arcus.ClamAV.Api.Client/nswag.json">
