@@ -124,7 +124,7 @@ jobs:
 
     - name: Add Coverage Comment
       if: ${{ inputs.run_tests && github.event_name == 'pull_request' }}
-      uses: actions/github-script@v8
+      uses: actions/github-script@v9
       env:
         COVERAGE_PERCENT: ${{ steps.coverage.outputs.COVERAGE_PERCENT }}
         GITHUB_REPO: ${{ github.repository }}
