@@ -16,7 +16,7 @@
 		  <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
 		</PackageReference>
 	<PackageReference Include="OpenTelemetry.Api" Version="1.15.3" />
-		<PackageReference Include="Swashbuckle.AspNetCore" Version="10.1.7" />
+		<PackageReference Include="Swashbuckle.AspNetCore" Version="10.2.0" />
 	</ItemGroup>
 	<Target Name="NSwag" BeforeTargets="AfterBuild" Condition="'$(CI)'!='true'">
 		<Exec ConsoleToMSBuild="true" ContinueOnError="true" Command="$(NSwagExe_Net100) run ../Arcus.ClamAV.Api.Client/nswag.json">
